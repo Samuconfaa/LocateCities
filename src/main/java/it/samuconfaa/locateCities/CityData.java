@@ -48,9 +48,12 @@ public class CityData {
         double scale = config.getScale();
 
         // Conversione coordinate reali -> Minecraft
-        int x = (int) Math.round((longitude - lonOrigin) * scale);
-        int z = (int) Math.round((latOrigin - latitude) * scale);
+        // Calcolo base
+        double deltaLon = longitude - lonOrigin;
+        double deltaLat = latOrigin - latitude; // Invertito per Minecraft (Z cresce verso sud)
 
+        int x = (int) Math.round(deltaLon * scale);
+        int z = (int) Math.round(deltaLat * scale);
 
         return new MinecraftCoordinates(x, z, config.getDefaultY());
     }

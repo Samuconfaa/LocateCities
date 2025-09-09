@@ -6,7 +6,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -17,15 +17,32 @@ public class CityManager {
     private final GeocodingService geocodingService;
     private final Map<String, CityData> cache;
     private final File cacheFile;
+    private boolean cacheDirty = false;
+
+    // Cache con limite di dimensione
+    private static final int MAX_CACHE_ENTRIES = 1000;
 
     public CityManager(LocateCities plugin, ConfigManager configManager) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.geocodingService = new GeocodingService(configManager.getApiTimeout());
-        this.cache = new HashMap<>();
+        this.cache = new LinkedHashMap<String, CityData>() {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, CityData> eldest) {
+                return size() > MAX_CACHE_ENTRIES;
+            }
+        };
         this.cacheFile = new File(plugin.getDataFolder(), "city_cache.yml");
 
         loadCache();
+
+        // Salva cache periodicamente (ogni 5 minuti) se dirty
+        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            if (cacheDirty) {
+                saveCache();
+                cacheDirty = false;
+            }
+        }, 20L * 300L, 20L * 300L); // 5 minuti
     }
 
     public CompletableFuture<CityData> findCity(String cityName) {
@@ -42,7 +59,7 @@ public class CityManager {
         if (offline != null) {
             // Salva in cache
             cache.put(normalizedName, offline);
-            saveCache();
+            cacheDirty = true;
             return CompletableFuture.completedFuture(offline);
         }
 
@@ -51,7 +68,7 @@ public class CityManager {
                 .thenApply(cityData -> {
                     // Salva in cache
                     cache.put(normalizedName, cityData);
-                    saveCache();
+                    cacheDirty = true;
                     return cityData;
                 })
                 .exceptionally(throwable -> {
@@ -67,6 +84,14 @@ public class CityManager {
         int x = coords.getX();
         int z = coords.getZ();
         int y = coords.getY();
+
+        // Applica inversioni se configurate
+        if (configManager.isInvertX()) {
+            x = -x;
+        }
+        if (configManager.isInvertZ()) {
+            z = -z;
+        }
 
         // Se abilitato, usa l'altezza del terreno
         if (configManager.useTerrainHeight()) {
@@ -128,8 +153,25 @@ public class CityManager {
     }
 
     public void clearExpiredCache() {
+        int sizeBefore = cache.size();
         cache.entrySet().removeIf(entry ->
                 entry.getValue().isExpired(configManager.getCacheDurationHours()));
-        saveCache();
+
+        int sizeAfter = cache.size();
+        int removed = sizeBefore - sizeAfter;
+
+        if (removed > 0) {
+            cacheDirty = true;
+            plugin.getLogger().info("Rimosse " + removed + " entry scadute dalla cache");
+        }
+    }
+
+    public int getCacheSize() {
+        return cache.size();
+    }
+
+    public void clearAllCache() {
+        cache.clear();
+        cacheDirty = true;
     }
 }

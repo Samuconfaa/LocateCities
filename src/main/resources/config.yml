@@ -33,11 +33,41 @@ cache_duration_hours: 24       # Durata cache delle città in ore
 invert_x: false                # Inverte l'asse X (Est-Ovest)
 invert_z: false                # Inverte l'asse Z (Nord-Sud)
 
+# Impostazioni Economy (Vault)
+# ============================
+economy:
+  enable: true                 # Abilita il sistema economico
+  search_cost: 10.0           # Costo per cercare una città
+  teleport_cost: 50.0         # Costo per teletrasportarsi
+  free_distance: 1000         # Distanza in blocchi entro cui il teleport è gratuito
+
+# Rate Limiting
+# =============
+rate_limit:
+  enabled: true               # Abilita il rate limiting
+  search_cooldown: 3          # Secondi tra una ricerca e l'altra per giocatore
+  teleport_cooldown: 10       # Secondi tra un teleport e l'altro per giocatore
+
 # Messaggi personalizzabili
+# ========================
 messages:
-  searching: "🔍 Ricerca di {city} in corso..."
-  found: "📍 {city} si trova alle coordinate X:{x} Z:{z}"
-  teleported: "✈ Teletrasportato a {city}!"
-  not_found: "❌ Città non trovata: {city}"
-  teleport_disabled: "❌ Il teletrasporto è disabilitato!"
-  no_permission: "❌ Non hai il permesso per usare questo comando!"
+  searching: "&e🔍 Ricerca di &f{city} &ein corso..."
+  found: "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}"
+  teleported: "&a✈ Teletrasportato a &f{city}&a!"
+  not_found: "&c❌ Città non trovata: &f{city}"
+  teleport_disabled: "&c❌ Il teletrasporto è disabilitato!"
+  no_permission: "&c❌ Non hai il permesso per usare questo comando!"
+  no_permission_teleport: "&c❌ Non hai il permesso per teletrasportarti!"
+  rate_limited_search: "&c❌ Devi aspettare &f{seconds} &csecondi prima di cercare un'altra città!"
+  rate_limited_teleport: "&c❌ Devi aspettare &f{seconds} &csecondi prima di teletrasportarti di nuovo!"
+  insufficient_funds: "&c❌ Non hai abbastanza soldi! Serve: &f${cost}"
+  economy_charged: "&a✅ Addebitati &f${cost} &aper la ricerca"
+  teleport_charged: "&a✅ Addebitati &f${cost} &aper il teletrasporto"
+  free_teleport: "&a✅ Teletrasporto gratuito (distanza: &f{distance} &ablocchi)"
+  config_reloaded: "&a✅ Configurazione ricaricata!"
+  cache_cleared: "&a✅ Cache pulita!"
+  origin_set: "&a✅ Origine impostata a: &f{lat}, {lon}"
+  scale_set: "&a✅ Scala impostata a: &f{scale}"
+  invalid_coordinates: "&c❌ Coordinate non valide!"
+  invalid_scale: "&c❌ Scala non valida!"
+  error_general: "&c❌ Errore: &f{error}"
