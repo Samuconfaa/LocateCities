@@ -1,0 +1,31 @@
+name: LocateCities
+version: 1.0.0
+main: it.samuconfaa.locateCities.LocateCities
+author: SamuConfaa
+description: Plugin per localizzare città del mondo reale in coordinate Minecraft
+api-version: 1.21
+website: https://github.com/samuconfaa/LocateCities
+
+commands:
+  citta:
+    description: Trova le coordinate Minecraft di una città
+    usage: /<command> <nome> [tp]
+    permission: locatecities.use
+    permission-message: Non hai il permesso per usare questo comando
+    aliases: [city, locate]
+  cittaadmin:
+    description: Comandi amministrativi per LocateCities
+    usage: /<command> <reload|clearcache|info|setorigin|setscale>
+    permission: locatecities.reload
+    permission-message: Non hai il permesso per usare questo comando
+
+permissions:
+  locatecities.use:
+    description: Permette di usare il comando /citta
+    default: true
+  locatecities.teleport:
+    description: Permette di teletrasportarsi alle città
+    default: op
+  locatecities.reload:
+    description: Permette di ricaricare la configurazione
+    default: op

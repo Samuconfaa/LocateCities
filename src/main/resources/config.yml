@@ -1,0 +1,43 @@
+# Configurazione LocateCities Plugin
+# ===================================
+
+# Punto di origine: coordinate geografiche reali che corrispondono al punto (0,0) in Minecraft
+# Esempio: se la tua mappa ha Roma al centro, usa le coordinate di Roma
+lat_origin: 41.9028    # Latitudine di Roma (esempio)
+lon_origin: 12.4964    # Longitudine di Roma (esempio)
+
+# Fattore di scala
+# Determina quanti blocchi Minecraft corrispondono a un grado di latitudine/longitudine
+# Esempi:
+# - scale: 100000 = 1 blocco per ogni ~1.11 metri (scala molto dettagliata)
+# - scale: 10000 = 1 blocco per ogni ~11.1 metri
+# - scale: 1000 = 1 blocco per ogni ~111 metri
+# - scale: 100 = 1 blocco per ogni ~1.11 km (scala compressa)
+scale: 1000.0
+
+# Altezza Y di default per le città (se use_terrain_height è false)
+y_default: 64
+
+# Impostazioni funzionalità
+enable_teleport: true          # Permette il teletrasporto con /citta <nome> tp
+use_terrain_height: true       # Usa l'altezza del terreno invece di y_default
+
+# Impostazioni API
+api_timeout: 5000              # Timeout per le richieste API in millisecondi
+cache_duration_hours: 24       # Durata cache delle città in ore
+
+# Impostazioni avanzate
+# =====================
+
+# Invertire gli assi (se la tua mappa è ruotata)
+invert_x: false                # Inverte l'asse X (Est-Ovest)
+invert_z: false                # Inverte l'asse Z (Nord-Sud)
+
+# Messaggi personalizzabili
+messages:
+  searching: "🔍 Ricerca di {city} in corso..."
+  found: "📍 {city} si trova alle coordinate X:{x} Z:{z}"
+  teleported: "✈ Teletrasportato a {city}!"
+  not_found: "❌ Città non trovata: {city}"
+  teleport_disabled: "❌ Il teletrasporto è disabilitato!"
+  no_permission: "❌ Non hai il permesso per usare questo comando!"
