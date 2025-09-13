@@ -6,6 +6,8 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +66,18 @@ public class AdminCommand implements CommandExecutor {
                 handleNear(sender, args);
                 break;
 
+            case "playerhistory":
+                handlePlayerHistory(sender, args);
+                break;
+
+            case "cleandb":
+                handleCleanDatabase(sender, args);
+                break;
+
+            case "dbstats":
+                handleDatabaseStats(sender);
+                break;
+
             default:
                 sendHelp(sender);
                 break;
@@ -73,14 +87,21 @@ public class AdminCommand implements CommandExecutor {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== LocateCities Admin ===");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin reload" + ChatColor.GRAY + " - Ricarica la configurazione");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin clearcache" + ChatColor.GRAY + " - Pulisce la cache");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin info" + ChatColor.GRAY + " - Mostra informazioni plugin");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin setorigin <lat> <lon>" + ChatColor.GRAY + " - Imposta origine mappa");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin setscale <scala>" + ChatColor.GRAY + " - Imposta scala mappa");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin stats" + ChatColor.GRAY + " - Mostra statistiche dettagliate");
-        sender.sendMessage(ChatColor.YELLOW + "/cittaadmin near <città>" + ChatColor.GRAY + " - Mostra città simili cercate");
+        sender.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════╗");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.YELLOW + "        LOCATECITIES ADMIN HELP        " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════╣");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin reload" + ChatColor.GRAY + " - Ricarica config    " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin clearcache" + ChatColor.GRAY + " - Pulisce cache" + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin info" + ChatColor.GRAY + " - Info plugin        " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin stats" + ChatColor.GRAY + " - Statistiche       " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin dbstats" + ChatColor.GRAY + " - Stats database   " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════╣");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setorigin <lat> <lon>     " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setscale <scala>          " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin near <città>              " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin playerhistory <player>    " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin cleandb [giorni]          " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════╝");
     }
 
     private void handleReload(CommandSender sender) {
@@ -94,26 +115,42 @@ public class AdminCommand implements CommandExecutor {
     }
 
     private void handleInfo(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== LocateCities Info ===");
-        sender.sendMessage(ChatColor.YELLOW + "Versione: " + ChatColor.WHITE + plugin.getDescription().getVersion());
-        sender.sendMessage(ChatColor.YELLOW + "Origine mappa: " + ChatColor.WHITE +
+        sender.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.YELLOW + "         LOCATECITIES INFO 📊          " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
+        sender.sendMessage("");
+
+        // Informazioni base
+        sender.sendMessage(ChatColor.AQUA + "📋 " + ChatColor.WHITE + "INFORMAZIONI BASE:");
+        sender.sendMessage(ChatColor.YELLOW + "   Versione: " + ChatColor.WHITE + plugin.getDescription().getVersion());
+        sender.sendMessage(ChatColor.YELLOW + "   Origine mappa: " + ChatColor.WHITE +
                 String.format("%.4f, %.4f",
                         plugin.getConfigManager().getLatOrigin(),
                         plugin.getConfigManager().getLonOrigin()));
-        sender.sendMessage(ChatColor.YELLOW + "Scala: " + ChatColor.WHITE + plugin.getConfigManager().getScale());
-        sender.sendMessage(ChatColor.YELLOW + "Teleport: " + ChatColor.WHITE +
-                (plugin.getConfigManager().isTeleportEnabled() ? "Abilitato" : "Disabilitato"));
-        sender.sendMessage(ChatColor.YELLOW + "Economy: " + ChatColor.WHITE +
-                (plugin.getConfigManager().isEconomyEnabled() ? "Abilitata" : "Disabilitata"));
-        sender.sendMessage(ChatColor.YELLOW + "Rate Limiting: " + ChatColor.WHITE +
-                (plugin.getConfigManager().isRateLimitEnabled() ? "Abilitato" : "Disabilitato"));
+        sender.sendMessage(ChatColor.YELLOW + "   Scala: " + ChatColor.WHITE + plugin.getConfigManager().getScale());
+        sender.sendMessage("");
+
+        // Funzionalità
+        sender.sendMessage(ChatColor.AQUA + "⚙️ " + ChatColor.WHITE + "FUNZIONALITÀ:");
+        sender.sendMessage(ChatColor.YELLOW + "   Teleport: " + ChatColor.WHITE +
+                (plugin.getConfigManager().isTeleportEnabled() ? ChatColor.GREEN + "✅ Abilitato" : ChatColor.RED + "❌ Disabilitato"));
+        sender.sendMessage(ChatColor.YELLOW + "   Economy: " + ChatColor.WHITE +
+                (plugin.getConfigManager().isEconomyEnabled() ? ChatColor.GREEN + "✅ Abilitata" : ChatColor.RED + "❌ Disabilitata"));
+        sender.sendMessage(ChatColor.YELLOW + "   Rate Limiting: " + ChatColor.WHITE +
+                (plugin.getConfigManager().isRateLimitEnabled() ? ChatColor.GREEN + "✅ Abilitato" : ChatColor.RED + "❌ Disabilitato"));
+        sender.sendMessage(ChatColor.YELLOW + "   Cooldown Giorni: " + ChatColor.WHITE +
+                (plugin.getConfigManager().isTeleportDayCooldownEnabled() ?
+                        ChatColor.GREEN + "✅ " + plugin.getConfigManager().getTeleportCooldownDays() + " giorni" :
+                        ChatColor.RED + "❌ Disabilitato"));
+        sender.sendMessage("");
 
         // Statistiche rapide
-        sender.sendMessage(ChatColor.GOLD + "=== Statistiche Rapide ===");
-        sender.sendMessage(ChatColor.YELLOW + "Ricerche totali: " + ChatColor.WHITE + statisticsManager.getTotalSearches());
-        sender.sendMessage(ChatColor.YELLOW + "Teleport totali: " + ChatColor.WHITE + statisticsManager.getTotalTeleports());
-        sender.sendMessage(ChatColor.YELLOW + "Cache hit rate: " + ChatColor.WHITE +
+        sender.sendMessage(ChatColor.AQUA + "📊 " + ChatColor.WHITE + "STATISTICHE RAPIDE:");
+        sender.sendMessage(ChatColor.YELLOW + "   Ricerche totali: " + ChatColor.WHITE + statisticsManager.getTotalSearches());
+        sender.sendMessage(ChatColor.YELLOW + "   Teleport totali: " + ChatColor.WHITE + statisticsManager.getTotalTeleports());
+        sender.sendMessage(ChatColor.YELLOW + "   Cache hit rate: " + ChatColor.WHITE +
                 String.format("%.1f%%", statisticsManager.getCacheHitRate()));
+        sender.sendMessage(ChatColor.YELLOW + "   Città in cache: " + ChatColor.WHITE + cityManager.getCacheSize());
     }
 
     private void handleSetOrigin(CommandSender sender, String[] args) {
@@ -172,34 +209,49 @@ public class AdminCommand implements CommandExecutor {
     }
 
     private void handleStats(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== Statistiche Dettagliate ===");
+        sender.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.YELLOW + "      📊 STATISTICHE DETTAGLIATE 📊     " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
+        sender.sendMessage("");
 
         // Statistiche generali
-        sender.sendMessage(ChatColor.YELLOW + "Ricerche totali: " + ChatColor.WHITE + statisticsManager.getTotalSearches());
-        sender.sendMessage(ChatColor.YELLOW + "Teleport totali: " + ChatColor.WHITE + statisticsManager.getTotalTeleports());
-        sender.sendMessage(ChatColor.YELLOW + "Cache hits: " + ChatColor.WHITE + statisticsManager.getCacheHits());
-        sender.sendMessage(ChatColor.YELLOW + "API calls: " + ChatColor.WHITE + statisticsManager.getApiCalls());
-        sender.sendMessage(ChatColor.YELLOW + "Cache hit rate: " + ChatColor.WHITE +
+        sender.sendMessage(ChatColor.AQUA + "📈 " + ChatColor.WHITE + "STATISTICHE GENERALI:");
+        sender.sendMessage(ChatColor.YELLOW + "   Ricerche totali: " + ChatColor.WHITE + statisticsManager.getTotalSearches());
+        sender.sendMessage(ChatColor.YELLOW + "   Teleport totali: " + ChatColor.WHITE + statisticsManager.getTotalTeleports());
+        sender.sendMessage(ChatColor.YELLOW + "   Cache hits: " + ChatColor.WHITE + statisticsManager.getCacheHits());
+        sender.sendMessage(ChatColor.YELLOW + "   API calls: " + ChatColor.WHITE + statisticsManager.getApiCalls());
+        sender.sendMessage(ChatColor.YELLOW + "   Cache hit rate: " + ChatColor.WHITE +
                 String.format("%.1f%%", statisticsManager.getCacheHitRate()));
+        sender.sendMessage("");
 
         // Top città cercate
-        sender.sendMessage(ChatColor.GOLD + "\n=== Top 10 Città Cercate ===");
+        sender.sendMessage(ChatColor.AQUA + "🏙️ " + ChatColor.WHITE + "TOP 10 CITTÀ CERCATE:");
         List<Map.Entry<String, Integer>> topCities = statisticsManager.getTopCities(10);
-        for (int i = 0; i < topCities.size(); i++) {
-            Map.Entry<String, Integer> entry = topCities.get(i);
-            sender.sendMessage(ChatColor.YELLOW.toString() + (i + 1) + ". " + ChatColor.WHITE.toString() + entry.getKey() +
-                    ChatColor.GRAY.toString() + " (" + entry.getValue() + " ricerche)");
-
+        if (topCities.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "   Nessuna città cercata ancora.");
+        } else {
+            for (int i = 0; i < topCities.size(); i++) {
+                Map.Entry<String, Integer> entry = topCities.get(i);
+                String medal = i == 0 ? "🥇" : i == 1 ? "🥈" : i == 2 ? "🥉" : "📍";
+                sender.sendMessage(ChatColor.WHITE + "   " + medal + " " + (i + 1) + ". " +
+                        ChatColor.AQUA + entry.getKey() + ChatColor.GRAY + " (" + entry.getValue() + " ricerche)");
+            }
         }
+        sender.sendMessage("");
 
         // Top giocatori (solo per admin, non per console)
         if (sender instanceof Player) {
-            sender.sendMessage(ChatColor.GOLD + "\n=== Top 5 Giocatori ===");
+            sender.sendMessage(ChatColor.AQUA + "👥 " + ChatColor.WHITE + "TOP 5 GIOCATORI:");
             List<Map.Entry<String, Integer>> topPlayers = statisticsManager.getTopPlayers(5);
-            for (int i = 0; i < topPlayers.size(); i++) {
-                Map.Entry<String, Integer> entry = topPlayers.get(i);
-                sender.sendMessage(ChatColor.YELLOW.toString() + (i + 1) + ". " + ChatColor.WHITE + entry.getKey() +
-                        ChatColor.GRAY + " (" + entry.getValue() + " ricerche)");
+            if (topPlayers.isEmpty()) {
+                sender.sendMessage(ChatColor.GRAY + "   Nessun giocatore ha fatto ricerche ancora.");
+            } else {
+                for (int i = 0; i < topPlayers.size(); i++) {
+                    Map.Entry<String, Integer> entry = topPlayers.get(i);
+                    String medal = i == 0 ? "👑" : i == 1 ? "🥈" : i == 2 ? "🥉" : "👤";
+                    sender.sendMessage(ChatColor.WHITE + "   " + medal + " " + (i + 1) + ". " +
+                            ChatColor.GREEN + entry.getKey() + ChatColor.GRAY + " (" + entry.getValue() + " ricerche)");
+                }
             }
         }
     }
@@ -214,18 +266,91 @@ public class AdminCommand implements CommandExecutor {
         String cityName = args[1];
         List<String> nearCities = statisticsManager.getNearCities(cityName, 10);
 
-        sender.sendMessage(ChatColor.GOLD + "=== Città simili a '" + cityName + "' ===");
+        sender.sendMessage(ChatColor.GOLD + "🔍 " + ChatColor.WHITE + "Città simili a '" +
+                ChatColor.AQUA + cityName + ChatColor.WHITE + "':");
+        sender.sendMessage("");
 
         if (nearCities.isEmpty()) {
-            sender.sendMessage(ChatColor.GRAY + "Nessuna città simile trovata.");
+            sender.sendMessage(ChatColor.GRAY + "❌ Nessuna città simile trovata.");
             return;
         }
 
-        for (String city : nearCities) {
+        for (int i = 0; i < nearCities.size(); i++) {
+            String city = nearCities.get(i);
             int searchCount = statisticsManager.getCitySearchCount(city);
-            String message = "" + ChatColor.YELLOW + "• " + ChatColor.WHITE + city +
-                    ChatColor.GRAY + " (" + searchCount + " ricerche)";
-            sender.sendMessage(message);
+            sender.sendMessage(ChatColor.WHITE + (i + 1) + ". " + ChatColor.YELLOW + city +
+                    ChatColor.GRAY + " (" + searchCount + " ricerche)");
         }
+    }
+
+    private void handlePlayerHistory(CommandSender sender, String[] args) {
+        if (args.length != 2) {
+            sender.sendMessage(ChatColor.RED + "Uso: /cittaadmin playerhistory <nome_giocatore>");
+            return;
+        }
+
+        String playerName = args[1];
+        Map<String, LocalDate> teleports = plugin.getDatabaseManager().getPlayerTeleports(playerName);
+
+        sender.sendMessage(ChatColor.GOLD + "📜 " + ChatColor.WHITE + "Cronologia teleport di " +
+                ChatColor.GREEN + playerName + ChatColor.WHITE + ":");
+        sender.sendMessage("");
+
+        if (teleports.isEmpty()) {
+            sender.sendMessage(ChatColor.GRAY + "❌ " + playerName + " non ha mai effettuato teleport.");
+            return;
+        }
+
+        LocalDate today = LocalDate.now();
+        int index = 1;
+        for (Map.Entry<String, LocalDate> entry : teleports.entrySet()) {
+            String cityName = entry.getKey();
+            LocalDate teleportDate = entry.getValue();
+            long daysAgo = java.time.temporal.ChronoUnit.DAYS.between(teleportDate, today);
+
+            String formattedDate = teleportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+            sender.sendMessage(ChatColor.WHITE + index + ". " + ChatColor.AQUA + cityName +
+                    ChatColor.GRAY + " - " + formattedDate + " (" + daysAgo + " giorni fa)");
+            index++;
+        }
+    }
+
+    private void handleCleanDatabase(CommandSender sender, String[] args) {
+        int daysToKeep = 90; // Default: mantieni 90 giorni
+
+        if (args.length == 2) {
+            try {
+                daysToKeep = Integer.parseInt(args[1]);
+                if (daysToKeep < 1) {
+                    sender.sendMessage(ChatColor.RED + "Il numero di giorni deve essere positivo!");
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                sender.sendMessage(ChatColor.RED + "Numero di giorni non valido!");
+                return;
+            }
+        }
+
+        plugin.getDatabaseManager().clearOldTeleports(daysToKeep);
+        sender.sendMessage(ChatColor.GREEN + "🗑️ Database pulito! Eliminati i record più vecchi di " +
+                daysToKeep + " giorni.");
+    }
+
+    private void handleDatabaseStats(CommandSender sender) {
+        // Questa funzione richiederebbe di aggiungere metodi al DatabaseManager per ottenere statistiche
+        sender.sendMessage(ChatColor.GOLD + "📊 " + ChatColor.WHITE + "STATISTICHE DATABASE:");
+        sender.sendMessage(ChatColor.YELLOW + "   Database: " + ChatColor.WHITE + "SQLite (teleports.db)");
+
+        if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
+            sender.sendMessage(ChatColor.YELLOW + "   Sistema cooldown: " + ChatColor.GREEN + "✅ Attivo (" +
+                    plugin.getConfigManager().getTeleportCooldownDays() + " giorni)");
+            sender.sendMessage(ChatColor.YELLOW + "   Costo per giorno: " + ChatColor.WHITE + "$" +
+                    plugin.getConfigManager().getTeleportCostPerDay());
+        } else {
+            sender.sendMessage(ChatColor.YELLOW + "   Sistema cooldown: " + ChatColor.RED + "❌ Disattivo");
+        }
+
+        sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin cleandb [giorni]' per pulire vecchi record.");
     }
 }

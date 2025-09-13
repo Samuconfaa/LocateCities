@@ -9,6 +9,7 @@ public class LocateCities extends JavaPlugin {
     private EconomyManager economyManager;
     private RateLimiter rateLimiter;
     private StatisticsManager statisticsManager;
+    private DatabaseManager databaseManager;
 
     @Override
     public void onEnable() {
@@ -20,12 +21,14 @@ public class LocateCities extends JavaPlugin {
         economyManager = new EconomyManager(this);
         rateLimiter = new RateLimiter(configManager);
         statisticsManager = new StatisticsManager(this);
+        databaseManager = new DatabaseManager(this);
         cityManager = new CityManager(this, configManager);
 
         // Registra i comandi
-        getCommand("citta").setExecutor(new CityCommand(this, cityManager, economyManager, rateLimiter, statisticsManager));
+        getCommand("citta").setExecutor(new CityCommand(this, cityManager, economyManager, rateLimiter, statisticsManager, databaseManager));
         getCommand("citta").setTabCompleter(new CityTabCompleter());
         getCommand("cittaadmin").setExecutor(new AdminCommand(this, cityManager, statisticsManager));
+        getCommand("tutorial").setExecutor(new TutorialCommand(this));
 
         // Task per pulire la cache scaduta ogni ora
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
@@ -39,12 +42,26 @@ public class LocateCities extends JavaPlugin {
             }
         }, 20L * 600L, 20L * 600L); // 10 minuti
 
+        // Task per pulire i record vecchi dal database ogni giorno
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            if (databaseManager != null && configManager.isTeleportDayCooldownEnabled()) {
+                // Mantieni i record per il doppio del periodo di cooldown + 30 giorni di buffer
+                int daysToKeep = (configManager.getTeleportCooldownDays() * 2) + 30;
+                databaseManager.clearOldTeleports(daysToKeep);
+            }
+        }, 20L * 86400L, 20L * 86400L); // 1 giorno = 86400 secondi
+
         getLogger().info("LocateCities plugin abilitato!");
         getLogger().info("Database offline contiene " + OfflineCityDatabase.getCityCount() + " città");
 
         if (economyManager.isEconomyEnabled()) {
             getLogger().info("Economy abilitata - Costo ricerca: $" + economyManager.getSearchCost() +
                     ", Costo teleport: $" + economyManager.getTeleportCost());
+
+            if (configManager.isTeleportDayCooldownEnabled()) {
+                getLogger().info("Sistema cooldown giorni attivo - Ogni " + configManager.getTeleportCooldownDays() +
+                        " giorni, costo aggiuntivo: $" + configManager.getTeleportCostPerDay() + " per giorno");
+            }
         }
 
         if (configManager.isRateLimitEnabled()) {
@@ -61,6 +78,9 @@ public class LocateCities extends JavaPlugin {
         }
         if (statisticsManager != null) {
             statisticsManager.saveStatistics();
+        }
+        if (databaseManager != null) {
+            databaseManager.close();
         }
 
         getLogger().info("LocateCities plugin disabilitato!");
@@ -84,5 +104,9 @@ public class LocateCities extends JavaPlugin {
 
     public CityManager getCityManager() {
         return cityManager;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
     }
 }

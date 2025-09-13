@@ -1,8 +1,8 @@
 name: LocateCities
-version: 1.0.0
+version: 1.1.0
 main: it.samuconfaa.locateCities.LocateCities
 author: SamuConfaa
-description: Plugin per localizzare città del mondo reale in coordinate Minecraft
+description: Plugin per localizzare città del mondo reale in coordinate Minecraft con sistema avanzato di cooldown
 api-version: 1.21
 website: https://github.com/samuconfaa/LocateCities
 depend: [Vault]
@@ -11,7 +11,7 @@ softdepend: [Vault]
 commands:
   citta:
     description: Trova le coordinate Minecraft di una città
-    usage: /<command> <nome> [tp]
+    usage: /<command> <nome> [tp] | /<command> history | /<command> tutorial
     permission: locatecities.use
     permission-message: Non hai il permesso per usare questo comando
     aliases: [city, locate]
@@ -20,6 +20,12 @@ commands:
     usage: /<command> <reload|clearcache|info|setorigin|setscale|stats|near>
     permission: locatecities.admin
     permission-message: Non hai il permesso per usare questo comando
+  tutorial:
+    description: Mostra il tutorial interattivo di LocateCities
+    usage: /<command> [skip]
+    permission: locatecities.use
+    permission-message: Non hai il permesso per usare questo comando
+    aliases: [cittatutorial, locatetutorial]
 
 permissions:
   locatecities.use:
@@ -32,8 +38,8 @@ permissions:
     description: Permette di usare i comandi amministrativi
     default: op
   locatecities.free:
-    description: Bypass dei costi economici
+    description: Bypass di tutti i costi economici e cooldown
     default: op
   locatecities.noratelimit:
-    description: Bypass del rate limiting
+    description: Bypass del rate limiting per secondo
     default: op

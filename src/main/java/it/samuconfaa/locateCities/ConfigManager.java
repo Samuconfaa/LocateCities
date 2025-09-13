@@ -42,6 +42,11 @@ public class ConfigManager {
         config.addDefault("rate_limit.search_cooldown", 3);
         config.addDefault("rate_limit.teleport_cooldown", 10);
 
+        // Teleport day cooldown defaults
+        config.addDefault("teleport_day_cooldown.enabled", true);
+        config.addDefault("teleport_day_cooldown.days", 7);
+        config.addDefault("teleport_day_cooldown.cost_per_day", 10.0);
+
         // Message defaults
         config.addDefault("messages.searching", "&e🔍 Ricerca di &f{city} &ein corso...");
         config.addDefault("messages.found", "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}");
@@ -63,37 +68,102 @@ public class ConfigManager {
         config.addDefault("messages.invalid_coordinates", "&c❌ Coordinate non valide!");
         config.addDefault("messages.invalid_scale", "&c❌ Scala non valida!");
         config.addDefault("messages.error_general", "&c❌ Errore: &f{error}");
+        config.addDefault("messages.teleport_day_cooldown", "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})");
+        config.addDefault("messages.teleport_cost_per_day", "&6💰 Il costo aumenta di &f${cost_per_day} &6per ogni giorno di attesa risparmiato!");
+        config.addDefault("messages.teleport_history_header", "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝");
+        config.addDefault("messages.teleport_history_entry", "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)");
+        config.addDefault("messages.teleport_history_empty", "&7Nessun teleport effettuato ancora.");
+        config.addDefault("messages.teleport_history_footer", "&7Usa &a/citta <nome> tp &7per teletrasportarti!");
 
         config.options().copyDefaults(true);
         plugin.saveConfig();
     }
 
     // Coordinate methods
-    public double getLatOrigin() { return config.getDouble("lat_origin"); }
-    public double getLonOrigin() { return config.getDouble("lon_origin"); }
-    public double getScale() { return config.getDouble("scale"); }
-    public int getDefaultY() { return config.getInt("y_default"); }
-    public boolean isInvertX() { return config.getBoolean("invert_x"); }
-    public boolean isInvertZ() { return config.getBoolean("invert_z"); }
+    public double getLatOrigin() {
+        return config.getDouble("lat_origin");
+    }
+
+    public double getLonOrigin() {
+        return config.getDouble("lon_origin");
+    }
+
+    public double getScale() {
+        return config.getDouble("scale");
+    }
+
+    public int getDefaultY() {
+        return config.getInt("y_default");
+    }
+
+    public boolean isInvertX() {
+        return config.getBoolean("invert_x");
+    }
+
+    public boolean isInvertZ() {
+        return config.getBoolean("invert_z");
+    }
 
     // Feature methods
-    public boolean isTeleportEnabled() { return config.getBoolean("enable_teleport"); }
-    public boolean useTerrainHeight() { return config.getBoolean("use_terrain_height"); }
+    public boolean isTeleportEnabled() {
+        return config.getBoolean("enable_teleport");
+    }
+
+    public boolean useTerrainHeight() {
+        return config.getBoolean("use_terrain_height");
+    }
 
     // API methods
-    public int getApiTimeout() { return config.getInt("api_timeout"); }
-    public int getCacheDurationHours() { return config.getInt("cache_duration_hours"); }
+    public int getApiTimeout() {
+        return config.getInt("api_timeout");
+    }
+
+    public int getCacheDurationHours() {
+        return config.getInt("cache_duration_hours");
+    }
 
     // Economy methods
-    public boolean isEconomyEnabled() { return config.getBoolean("economy.enable"); }
-    public double getSearchCost() { return config.getDouble("economy.search_cost"); }
-    public double getTeleportCost() { return config.getDouble("economy.teleport_cost"); }
-    public int getFreeDistance() { return config.getInt("economy.free_distance"); }
+    public boolean isEconomyEnabled() {
+        return config.getBoolean("economy.enable");
+    }
+
+    public double getSearchCost() {
+        return config.getDouble("economy.search_cost");
+    }
+
+    public double getTeleportCost() {
+        return config.getDouble("economy.teleport_cost");
+    }
+
+    public int getFreeDistance() {
+        return config.getInt("economy.free_distance");
+    }
 
     // Rate limiting methods
-    public boolean isRateLimitEnabled() { return config.getBoolean("rate_limit.enabled"); }
-    public int getSearchCooldown() { return config.getInt("rate_limit.search_cooldown"); }
-    public int getTeleportCooldown() { return config.getInt("rate_limit.teleport_cooldown"); }
+    public boolean isRateLimitEnabled() {
+        return config.getBoolean("rate_limit.enabled");
+    }
+
+    public int getSearchCooldown() {
+        return config.getInt("rate_limit.search_cooldown");
+    }
+
+    public int getTeleportCooldown() {
+        return config.getInt("rate_limit.teleport_cooldown");
+    }
+
+    // Teleport day cooldown methods
+    public boolean isTeleportDayCooldownEnabled() {
+        return config.getBoolean("teleport_day_cooldown.enabled");
+    }
+
+    public int getTeleportCooldownDays() {
+        return config.getInt("teleport_day_cooldown.days");
+    }
+
+    public double getTeleportCostPerDay() {
+        return config.getDouble("teleport_day_cooldown.cost_per_day");
+    }
 
     // Message methods
     public String getMessage(String key, String... placeholders) {
