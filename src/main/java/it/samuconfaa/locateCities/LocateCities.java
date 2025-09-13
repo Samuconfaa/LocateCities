@@ -28,7 +28,6 @@ public class LocateCities extends JavaPlugin {
         getCommand("citta").setExecutor(new CityCommand(this, cityManager, economyManager, rateLimiter, statisticsManager, databaseManager));
         getCommand("citta").setTabCompleter(new CityTabCompleter());
         getCommand("cittaadmin").setExecutor(new AdminCommand(this, cityManager, statisticsManager));
-        getCommand("tutorial").setExecutor(new TutorialCommand(this));
 
         // Task per pulire la cache scaduta ogni ora
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
@@ -57,11 +56,11 @@ public class LocateCities extends JavaPlugin {
         if (economyManager.isEconomyEnabled()) {
             getLogger().info("Economy abilitata - Costo ricerca: $" + economyManager.getSearchCost() +
                     ", Costo teleport: $" + economyManager.getTeleportCost());
+        }
 
-            if (configManager.isTeleportDayCooldownEnabled()) {
-                getLogger().info("Sistema cooldown giorni attivo - Ogni " + configManager.getTeleportCooldownDays() +
-                        " giorni, costo aggiuntivo: $" + configManager.getTeleportCostPerDay() + " per giorno");
-            }
+        if (configManager.isTeleportDayCooldownEnabled()) {
+            getLogger().info("Sistema cooldown giorni attivo - Ogni " + configManager.getTeleportCooldownDays() +
+                    " giorni (cooldown globale per qualsiasi città)");
         }
 
         if (configManager.isRateLimitEnabled()) {

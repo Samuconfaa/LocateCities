@@ -1,5 +1,6 @@
 package it.samuconfaa.locateCities;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -78,6 +79,10 @@ public class AdminCommand implements CommandExecutor {
                 handleDatabaseStats(sender);
                 break;
 
+            case "bypass":
+                handleBypassCooldown(sender, args);
+                break;
+
             default:
                 sendHelp(sender);
                 break;
@@ -95,6 +100,7 @@ public class AdminCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin info" + ChatColor.GRAY + " - Info plugin        " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin stats" + ChatColor.GRAY + " - Statistiche       " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin dbstats" + ChatColor.GRAY + " - Stats database   " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin bypass <player> <city>" + ChatColor.GRAY + " - Bypass cooldown" + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════╣");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setorigin <lat> <lon>     " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setscale <scala>          " + ChatColor.GOLD + "║");
@@ -278,8 +284,12 @@ public class AdminCommand implements CommandExecutor {
         for (int i = 0; i < nearCities.size(); i++) {
             String city = nearCities.get(i);
             int searchCount = statisticsManager.getCitySearchCount(city);
-            sender.sendMessage(ChatColor.WHITE + (i + 1) + ". " + ChatColor.YELLOW + city +
-                    ChatColor.GRAY + " (" + searchCount + " ricerche)");
+            sender.sendMessage(
+                    ChatColor.WHITE + "" + (i + 1) + ". "
+                            + ChatColor.YELLOW + city
+                            + ChatColor.GRAY + " (" + searchCount + " ricerche)"
+            );
+
         }
     }
 
@@ -310,8 +320,8 @@ public class AdminCommand implements CommandExecutor {
 
             String formattedDate = teleportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
 
-            sender.sendMessage(ChatColor.WHITE + index + ". " + ChatColor.AQUA + cityName +
-                    ChatColor.GRAY + " - " + formattedDate + " (" + daysAgo + " giorni fa)");
+            sender.sendMessage(ChatColor.WHITE + "" + index + ". " + ChatColor.AQUA + cityName
+                    + ChatColor.GRAY + " - " + formattedDate + " (" + daysAgo + " giorni fa)");
             index++;
         }
     }
@@ -338,19 +348,48 @@ public class AdminCommand implements CommandExecutor {
     }
 
     private void handleDatabaseStats(CommandSender sender) {
-        // Questa funzione richiederebbe di aggiungere metodi al DatabaseManager per ottenere statistiche
         sender.sendMessage(ChatColor.GOLD + "📊 " + ChatColor.WHITE + "STATISTICHE DATABASE:");
         sender.sendMessage(ChatColor.YELLOW + "   Database: " + ChatColor.WHITE + "SQLite (teleports.db)");
 
         if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
             sender.sendMessage(ChatColor.YELLOW + "   Sistema cooldown: " + ChatColor.GREEN + "✅ Attivo (" +
                     plugin.getConfigManager().getTeleportCooldownDays() + " giorni)");
-            sender.sendMessage(ChatColor.YELLOW + "   Costo per giorno: " + ChatColor.WHITE + "$" +
-                    plugin.getConfigManager().getTeleportCostPerDay());
         } else {
             sender.sendMessage(ChatColor.YELLOW + "   Sistema cooldown: " + ChatColor.RED + "❌ Disattivo");
         }
 
         sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin cleandb [giorni]' per pulire vecchi record.");
+        sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin bypass <player>' per bypassare il cooldown globale.");
+    }
+
+    private void handleBypassCooldown(CommandSender sender, String[] args) {
+        if (args.length != 3) {
+            sender.sendMessage(ChatColor.RED + "Uso: /cittaadmin bypass <nome_giocatore> <nome_città>");
+            sender.sendMessage(ChatColor.GRAY + "Esempio: /cittaadmin bypass Steve roma");
+            return;
+        }
+
+        String playerName = args[1];
+        String cityName = args[2];
+
+        // Controlla se il giocatore esiste (online o offline)
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null && Bukkit.getOfflinePlayer(playerName).getName() == null) {
+            sender.sendMessage(ChatColor.RED + "❌ Giocatore non trovato: " + playerName);
+            return;
+        }
+
+        // Registra un teleport "fittizio" con data odierna per resettare il cooldown
+        plugin.getDatabaseManager().recordTeleport(playerName, cityName);
+
+        sender.sendMessage(ChatColor.GREEN + "✅ Cooldown bypassato per " + ChatColor.YELLOW + playerName +
+                ChatColor.GREEN + " verso " + ChatColor.AQUA + cityName + ChatColor.GREEN + "!");
+
+        // Notifica il giocatore se è online
+        if (target != null) {
+            target.sendMessage(plugin.getConfigManager().getMessage("cooldown_bypassed", "city", cityName));
+        }
+
+        plugin.getLogger().info(sender.getName() + " ha bypassato il cooldown di " + playerName + " per " + cityName);
     }
 }

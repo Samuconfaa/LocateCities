@@ -17,15 +17,9 @@ commands:
     aliases: [city, locate]
   cittaadmin:
     description: Comandi amministrativi per LocateCities
-    usage: /<command> <reload|clearcache|info|setorigin|setscale|stats|near>
+    usage: /<command> <reload|clearcache|info|setorigin|setscale|stats|near|bypass|playerhistory|cleandb|dbstats>
     permission: locatecities.admin
     permission-message: Non hai il permesso per usare questo comando
-  tutorial:
-    description: Mostra il tutorial interattivo di LocateCities
-    usage: /<command> [skip]
-    permission: locatecities.use
-    permission-message: Non hai il permesso per usare questo comando
-    aliases: [cittatutorial, locatetutorial]
 
 permissions:
   locatecities.use:

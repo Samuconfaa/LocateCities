@@ -45,7 +45,6 @@ public class ConfigManager {
         // Teleport day cooldown defaults
         config.addDefault("teleport_day_cooldown.enabled", true);
         config.addDefault("teleport_day_cooldown.days", 7);
-        config.addDefault("teleport_day_cooldown.cost_per_day", 10.0);
 
         // Message defaults
         config.addDefault("messages.searching", "&e🔍 Ricerca di &f{city} &ein corso...");
@@ -69,11 +68,11 @@ public class ConfigManager {
         config.addDefault("messages.invalid_scale", "&c❌ Scala non valida!");
         config.addDefault("messages.error_general", "&c❌ Errore: &f{error}");
         config.addDefault("messages.teleport_day_cooldown", "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})");
-        config.addDefault("messages.teleport_cost_per_day", "&6💰 Il costo aumenta di &f${cost_per_day} &6per ogni giorno di attesa risparmiato!");
         config.addDefault("messages.teleport_history_header", "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝");
         config.addDefault("messages.teleport_history_entry", "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)");
         config.addDefault("messages.teleport_history_empty", "&7Nessun teleport effettuato ancora.");
         config.addDefault("messages.teleport_history_footer", "&7Usa &a/citta <nome> tp &7per teletrasportarti!");
+        config.addDefault("messages.cooldown_bypassed", "&a✅ Il cooldown per i teleport è stato resettato da un admin!");
 
         config.options().copyDefaults(true);
         plugin.saveConfig();
@@ -159,10 +158,6 @@ public class ConfigManager {
 
     public int getTeleportCooldownDays() {
         return config.getInt("teleport_day_cooldown.days");
-    }
-
-    public double getTeleportCostPerDay() {
-        return config.getDouble("teleport_day_cooldown.cost_per_day");
     }
 
     // Message methods

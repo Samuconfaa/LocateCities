@@ -50,36 +50,138 @@ public class DatabaseManager {
         }
     }
 
-    public boolean canTeleportToCity(String playerName, String cityName, int cooldownDays) {
+    // NUOVO: Controlla se il giocatore può fare QUALSIASI teleport
+    public boolean canTeleport(String playerName, int cooldownDays) {
         if (cooldownDays <= 0) return true; // Nessun cooldown
 
         String query = """
-            SELECT teleport_date FROM player_teleports 
-            WHERE player_name = ? AND city_name = ? 
-            ORDER BY teleport_date DESC LIMIT 1
+            SELECT MAX(teleport_date) as last_teleport 
+            FROM player_teleports 
+            WHERE player_name = ?
             """;
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, playerName);
-            stmt.setString(2, cityName.toLowerCase());
 
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                String lastTeleportStr = rs.getString("teleport_date");
-                LocalDate lastTeleport = LocalDate.parse(lastTeleportStr);
-                LocalDate now = LocalDate.now();
+                String lastTeleportStr = rs.getString("last_teleport");
+                if (lastTeleportStr != null) {
+                    LocalDate lastTeleport = LocalDate.parse(lastTeleportStr);
+                    LocalDate now = LocalDate.now();
 
-                return lastTeleport.plusDays(cooldownDays).isBefore(now) ||
-                        lastTeleport.plusDays(cooldownDays).equals(now);
+                    return lastTeleport.plusDays(cooldownDays).isBefore(now) ||
+                            lastTeleport.plusDays(cooldownDays).equals(now);
+                }
             }
 
-            return true; // Prima volta che si teletrasporta a questa città
+            return true; // Prima volta che fa un teleport
 
         } catch (SQLException e) {
-            plugin.getLogger().warning("Errore nel controllo cooldown teleport: " + e.getMessage());
+            plugin.getLogger().warning("Errore nel controllo cooldown globale: " + e.getMessage());
             return true; // In caso di errore, permetti il teleport
         }
+    }
+
+    // NUOVO: Ottiene i giorni rimanenti del cooldown globale
+    public int getRemainingDays(String playerName, int cooldownDays) {
+        if (cooldownDays <= 0) return 0;
+
+        String query = """
+            SELECT MAX(teleport_date) as last_teleport 
+            FROM player_teleports 
+            WHERE player_name = ?
+            """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, playerName);
+
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                String lastTeleportStr = rs.getString("last_teleport");
+                if (lastTeleportStr != null) {
+                    LocalDate lastTeleport = LocalDate.parse(lastTeleportStr);
+                    LocalDate now = LocalDate.now();
+                    LocalDate nextAvailable = lastTeleport.plusDays(cooldownDays);
+
+                    if (nextAvailable.isAfter(now)) {
+                        return (int) (nextAvailable.toEpochDay() - now.toEpochDay());
+                    }
+                }
+            }
+
+            return 0;
+
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Errore nel calcolo giorni rimanenti globale: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    // NUOVO: Ottiene la data dell'ultimo teleport (qualsiasi città)
+    public LocalDate getLastTeleportDate(String playerName) {
+        String query = """
+            SELECT city_name, teleport_date 
+            FROM player_teleports 
+            WHERE player_name = ? 
+            ORDER BY teleport_date DESC 
+            LIMIT 1
+            """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, playerName);
+
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return LocalDate.parse(rs.getString("teleport_date"));
+            }
+
+            return null; // Nessun teleport precedente
+
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Errore nel recupero ultimo teleport: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // NUOVO: Ottiene la città dell'ultimo teleport
+    public String getLastTeleportCity(String playerName) {
+        String query = """
+            SELECT city_name 
+            FROM player_teleports 
+            WHERE player_name = ? 
+            ORDER BY teleport_date DESC 
+            LIMIT 1
+            """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, playerName);
+
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("city_name");
+            }
+
+            return null; // Nessun teleport precedente
+
+        } catch (SQLException e) {
+            plugin.getLogger().warning("Errore nel recupero ultima città: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // DEPRECATO: Manteniamo per compatibilità ma ora inutile
+    @Deprecated
+    public boolean canTeleportToCity(String playerName, String cityName, int cooldownDays) {
+        return canTeleport(playerName, cooldownDays);
+    }
+
+    // DEPRECATO: Manteniamo per compatibilità ma ora inutile
+    @Deprecated
+    public int getRemainingDays(String playerName, String cityName, int cooldownDays) {
+        return getRemainingDays(playerName, cooldownDays);
     }
 
     public void recordTeleport(String playerName, String cityName) {
@@ -97,40 +199,6 @@ public class DatabaseManager {
 
         } catch (SQLException e) {
             plugin.getLogger().warning("Errore nella registrazione del teleport: " + e.getMessage());
-        }
-    }
-
-    public int getRemainingDays(String playerName, String cityName, int cooldownDays) {
-        if (cooldownDays <= 0) return 0;
-
-        String query = """
-            SELECT teleport_date FROM player_teleports 
-            WHERE player_name = ? AND city_name = ? 
-            ORDER BY teleport_date DESC LIMIT 1
-            """;
-
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, playerName);
-            stmt.setString(2, cityName.toLowerCase());
-
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                String lastTeleportStr = rs.getString("teleport_date");
-                LocalDate lastTeleport = LocalDate.parse(lastTeleportStr);
-                LocalDate now = LocalDate.now();
-                LocalDate nextAvailable = lastTeleport.plusDays(cooldownDays);
-
-                if (nextAvailable.isAfter(now)) {
-                    return (int) (nextAvailable.toEpochDay() - now.toEpochDay());
-                }
-            }
-
-            return 0;
-
-        } catch (SQLException e) {
-            plugin.getLogger().warning("Errore nel calcolo giorni rimanenti: " + e.getMessage());
-            return 0;
         }
     }
 

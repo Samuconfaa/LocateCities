@@ -102,26 +102,20 @@ public class CityCommand implements CommandExecutor {
                     return true;
                 }
 
-                // Controllo cooldown giorni per teleport
-                if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
+                // Controllo cooldown globale per teleport (qualsiasi città)
+                if (plugin.getConfigManager().isTeleportDayCooldownEnabled() && !player.hasPermission("locatecities.free")) {
                     int cooldownDays = plugin.getConfigManager().getTeleportCooldownDays();
-                    if (!databaseManager.canTeleportToCity(player.getName(), cityName, cooldownDays)) {
-                        int remainingDays = databaseManager.getRemainingDays(player.getName(), cityName, cooldownDays);
+                    if (!databaseManager.canTeleport(player.getName(), cooldownDays)) {
+                        int remainingDays = databaseManager.getRemainingDays(player.getName(), cooldownDays);
 
-                        // Mostra info sul costo per ridurre l'attesa
-                        if (plugin.getConfigManager().getTeleportCostPerDay() > 0) {
-                            player.sendMessage(plugin.getConfigManager().getMessage("teleport_cost_per_day",
-                                    "cost_per_day", String.valueOf(plugin.getConfigManager().getTeleportCostPerDay())));
-                        }
-
-                        Map<String, LocalDate> teleports = databaseManager.getPlayerTeleports(player.getName());
-                        LocalDate lastTeleport = teleports.get(cityName.toLowerCase());
+                        LocalDate lastTeleport = databaseManager.getLastTeleportDate(player.getName());
+                        String lastCity = databaseManager.getLastTeleportCity(player.getName());
                         String lastDateStr = lastTeleport != null ?
                                 lastTeleport.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "Mai";
 
-                        player.sendMessage(plugin.getConfigManager().getMessage("teleport_day_cooldown",
-                                "city", cityName,
+                        player.sendMessage(plugin.getConfigManager().getMessage("teleport_global_cooldown",
                                 "days", String.valueOf(remainingDays),
+                                "last_city", lastCity != null ? lastCity : "Sconosciuta",
                                 "last_date", lastDateStr));
                         return true;
                     }
@@ -235,8 +229,8 @@ public class CityCommand implements CommandExecutor {
         double distance = playerLocation.distance(cityLocation);
         boolean isFree = distance <= economyManager.getFreeDistance();
 
-        // Calcola il costo del teleport con il nuovo sistema
-        double teleportCost = calculateTeleportCost(player, cityData.getName(), distance, isFree);
+        // Calcola il costo del teleport (semplificato, senza opzione bypass pagamento)
+        double teleportCost = calculateTeleportCost(player, distance, isFree);
 
         // Controllo economy per teleport (se non è gratuito)
         if (teleportCost > 0 && economyManager.isEconomyEnabled()) {
@@ -264,28 +258,13 @@ public class CityCommand implements CommandExecutor {
         databaseManager.recordTeleport(player.getName(), cityData.getName());
     }
 
-    private double calculateTeleportCost(Player player, String cityName, double distance, boolean isFree) {
+    private double calculateTeleportCost(Player player, double distance, boolean isFree) {
         // Se ha il permesso gratuito o è entro la distanza gratuita
         if (player.hasPermission("locatecities.free") || isFree) {
             return 0.0;
         }
 
-        // Se il sistema per giorni non è abilitato, usa il costo fisso
-        if (!plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
-            return economyManager.getTeleportCost();
-        }
-
-        // Calcola il costo basato sui giorni dal ultimo teleport
-        int cooldownDays = plugin.getConfigManager().getTeleportCooldownDays();
-        int remainingDays = databaseManager.getRemainingDays(player.getName(), cityName, cooldownDays);
-
-        if (remainingDays == 0) {
-            // Può teletrasportarsi normalmente
-            return economyManager.getTeleportCost();
-        } else {
-            // Costo aumentato per saltare l'attesa
-            double costPerDay = plugin.getConfigManager().getTeleportCostPerDay();
-            return economyManager.getTeleportCost() + (costPerDay * remainingDays);
-        }
+        // Costo fisso del teleport (senza bonus per giorni)
+        return economyManager.getTeleportCost();
     }
 }

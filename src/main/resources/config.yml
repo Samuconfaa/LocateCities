@@ -48,6 +48,12 @@ rate_limit:
   search_cooldown: 3          # Secondi tra una ricerca e l'altra per giocatore
   teleport_cooldown: 10       # Secondi tra un teleport e l'altro per giocatore
 
+# Sistema Cooldown Giorni per Teleport
+# ====================================
+teleport_day_cooldown:
+  enabled: true               # Abilita il sistema cooldown giorni
+  days: 7                     # Giorni di attesa tra teleport alla stessa città
+
 # Messaggi personalizzabili
 # ========================
 messages:
@@ -71,3 +77,10 @@ messages:
   invalid_coordinates: "&c❌ Coordinate non valide!"
   invalid_scale: "&c❌ Scala non valida!"
   error_general: "&c❌ Errore: &f{error}"
+  teleport_global_cooldown: "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)"
+  teleport_history_header: "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝"
+  teleport_history_entry: "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)"
+  teleport_history_empty: "&7Nessun teleport effettuato ancora."
+  teleport_history_footer: "&7Usa &a/citta <nome> tp &7per teletrasportarti!"
+  cooldown_bypassed: "&a✅ Il cooldown per i teleport è stato resettato da un admin!"
+  teleport_day_cooldown: "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})"
