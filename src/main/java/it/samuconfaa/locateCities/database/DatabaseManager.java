@@ -7,6 +7,8 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,70 +22,76 @@ public class DatabaseManager {
     private final Logger logger;
     private final ReentrantReadWriteLock dbLock = new ReentrantReadWriteLock();
 
-    // Pattern per validazione sicura dei nomi
+    // Pattern per validazione sicura
     private static final Pattern SAFE_PLAYER_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{1,16}$");
     private static final Pattern SAFE_CITY_NAME_PATTERN = Pattern.compile("^[a-zA-ZÀ-ÿ0-9\\s\\-'.,]{1,50}$");
 
-    // Prepared statements per performance e sicurezza
-    private PreparedStatement insertTeleportStmt;
-    private PreparedStatement selectLastTeleportStmt;
-    private PreparedStatement selectPlayerTeleportsStmt;
-    private PreparedStatement deleteOldTeleportsStmt;
+    // Connessione pool simulato per SQLite
+    private final BlockingQueue<Connection> connectionPool;
+    private final AtomicInteger activeConnections = new AtomicInteger(0);
+    private static final int MAX_POOL_SIZE = 3;
+
+    // Batch operations per performance
+    private final BlockingQueue<TeleportRecord> pendingInserts;
+    private final ScheduledExecutorService batchProcessor;
+    private final AtomicInteger batchedOperations = new AtomicInteger(0);
+
+    // Prepared statements cache
+    private Map<String, PreparedStatement> statementCache = new ConcurrentHashMap<>();
+
+    // Metriche performance
+    private final AtomicInteger totalQueries = new AtomicInteger(0);
+
+    private static final int BATCH_SIZE = 50;
+    private static final int BATCH_TIMEOUT_MS = 30000; // 30 secondi
 
     public DatabaseManager(LocateCities plugin) {
         this.plugin = plugin;
         this.logger = plugin.getLogger();
         this.dbFile = new File(plugin.getDataFolder(), "teleports.db");
+
+        this.connectionPool = new LinkedBlockingQueue<>(MAX_POOL_SIZE);
+        this.pendingInserts = new LinkedBlockingQueue<>();
+        this.statementCache = new ConcurrentHashMap<>();
+
+        // Batch processor ottimizzato
+        this.batchProcessor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "LocateCities-Batch");
+            t.setDaemon(true);
+            return t;
+        });
+
         initDatabase();
-        prepareStatements();
+        startBatchProcessor();
     }
 
     private void initDatabase() {
         dbLock.writeLock().lock();
         try {
-            // Crea la directory se non esiste
             if (!plugin.getDataFolder().exists()) {
                 if (!plugin.getDataFolder().mkdirs()) {
                     throw new RuntimeException("Impossibile creare la directory del plugin");
                 }
             }
 
-            // Connessione al database con parametri di sicurezza
             String url = "jdbc:sqlite:" + dbFile.getAbsolutePath() +
-                    "?journal_mode=WAL&synchronous=NORMAL&foreign_keys=ON";
+                    "?journal_mode=WAL&synchronous=NORMAL&temp_store=MEMORY&cache_size=10000&foreign_keys=ON";
             connection = DriverManager.getConnection(url);
 
-            // Configura connessione per sicurezza
-            connection.setAutoCommit(true);
-
-            // Crea la tabella se non esiste
-            String createTable = """
-                CREATE TABLE IF NOT EXISTS player_teleports (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    player_name TEXT NOT NULL CHECK(length(player_name) <= 16),
-                    city_name TEXT NOT NULL CHECK(length(city_name) <= 50),
-                    teleport_date TEXT NOT NULL CHECK(date(teleport_date) IS NOT NULL),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(player_name, city_name, teleport_date)
-                );
-                """;
-
+            // Ottimizzazioni SQLite
             try (Statement stmt = connection.createStatement()) {
-                stmt.execute(createTable);
-
-                // Crea indici per performance
-                stmt.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_player_date 
-                    ON player_teleports(player_name, teleport_date DESC)
-                    """);
-
-                stmt.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_city_name 
-                    ON player_teleports(city_name)
-                    """);
+                stmt.execute("PRAGMA journal_mode=WAL");
+                stmt.execute("PRAGMA synchronous=NORMAL");
+                stmt.execute("PRAGMA temp_store=MEMORY");
+                stmt.execute("PRAGMA cache_size=10000");
+                stmt.execute("PRAGMA foreign_keys=ON");
             }
 
-            logger.info("Database SQLite inizializzato: " + dbFile.getName());
+            createOptimizedTables();
+            prepareStatements();
+            initConnectionPool();
+
+            logger.info("Database SQLite ottimizzato inizializzato: " + dbFile.getName());
 
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Errore nell'inizializzazione del database", e);
@@ -93,64 +101,160 @@ public class DatabaseManager {
         }
     }
 
-    private void prepareStatements() {
-        dbLock.writeLock().lock();
+    private void createOptimizedTables() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            // CORREZIONE 1: Aggiunto AUTOINCREMENT e rimosso WITHOUT ROWID per evitare l'errore NOT NULL
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS player_teleports (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        player_name TEXT NOT NULL CHECK(length(player_name) <= 16),
+                        city_name TEXT NOT NULL CHECK(length(city_name) <= 50),
+                        teleport_date TEXT NOT NULL CHECK(date(teleport_date) IS NOT NULL),
+                        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+                        UNIQUE(player_name, teleport_date) ON CONFLICT REPLACE
+                    )
+                    """);
+
+            // Indici ottimizzati per query più frequenti
+            stmt.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_player_date_optimized 
+                    ON player_teleports(player_name, teleport_date DESC, city_name)
+                    """);
+
+            // CORREZIONE 2: Rimossa la clausola WHERE per risolvere l'errore "non-deterministic use of date()"
+            stmt.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_date_only 
+                    ON player_teleports(teleport_date)
+                    """);
+        }
+    }
+
+    private void initConnectionPool() {
         try {
-            // Prepared statement per inserimento teleport
-            insertTeleportStmt = connection.prepareStatement("""
+            // Crea pool di connessioni per operazioni concorrenti
+            for (int i = 0; i < MAX_POOL_SIZE - 1; i++) {
+                String url = "jdbc:sqlite:" + dbFile.getAbsolutePath() +
+                        "?journal_mode=WAL&synchronous=NORMAL&temp_store=MEMORY&cache_size=5000";
+                Connection poolConn = DriverManager.getConnection(url);
+                connectionPool.offer(poolConn);
+            }
+        } catch (SQLException e) {
+            logger.warning("Errore inizializzazione connection pool: " + e.getMessage());
+        }
+    }
+
+    private Connection getPooledConnection() throws SQLException {
+        Connection poolConn = connectionPool.poll();
+        if (poolConn == null || poolConn.isClosed()) {
+            // Fallback alla connessione principale
+            return connection;
+        }
+        return poolConn;
+    }
+
+    private void returnPooledConnection(Connection conn) {
+        if (conn != connection && !connectionPool.offer(conn)) {
+            try {
+                conn.close();
+            } catch (SQLException e) {
+                // Ignora errori di chiusura
+            }
+        }
+    }
+
+    private void prepareStatements() throws SQLException {
+        // Cache prepared statements per riutilizzo
+        statementCache.put("SELECT_LAST_TELEPORT", connection.prepareStatement("""
+                SELECT city_name, teleport_date FROM player_teleports 
+                WHERE player_name = ? ORDER BY teleport_date DESC LIMIT 1
+                """));
+
+        statementCache.put("SELECT_PLAYER_TELEPORTS", connection.prepareStatement("""
+                SELECT city_name, MAX(teleport_date) as last_teleport 
+                FROM player_teleports WHERE player_name = ? 
+                GROUP BY city_name ORDER BY last_teleport DESC
+                """));
+
+        statementCache.put("INSERT_TELEPORT", connection.prepareStatement("""
                 INSERT OR REPLACE INTO player_teleports (player_name, city_name, teleport_date) 
                 VALUES (?, ?, ?)
-                """);
+                """));
 
-            // Prepared statement per ultimo teleport
-            selectLastTeleportStmt = connection.prepareStatement("""
-                SELECT city_name, teleport_date 
-                FROM player_teleports 
-                WHERE player_name = ? 
-                ORDER BY teleport_date DESC 
-                LIMIT 1
-                """);
+        statementCache.put("DELETE_OLD", connection.prepareStatement("""
+                DELETE FROM player_teleports WHERE teleport_date < ?
+                """));
+    }
 
-            // Prepared statement per teleport giocatore
-            selectPlayerTeleportsStmt = connection.prepareStatement("""
-                SELECT city_name, MAX(teleport_date) as last_teleport 
-                FROM player_teleports 
-                WHERE player_name = ? 
-                GROUP BY city_name
-                ORDER BY last_teleport DESC
-                """);
+    private void startBatchProcessor() {
+        // Processor che gira ogni 15 secondi
+        batchProcessor.scheduleWithFixedDelay(this::processBatchInserts,
+                15, 15, TimeUnit.SECONDS);
+    }
 
-            // Prepared statement per pulizia vecchi record
-            deleteOldTeleportsStmt = connection.prepareStatement("""
-                DELETE FROM player_teleports 
-                WHERE teleport_date < ?
-                """);
+    private void processBatchInserts() {
+        if (pendingInserts.isEmpty()) return;
+
+        dbLock.writeLock().lock();
+        try {
+            // CORREZIONE 3: Rimosso il try-with-resources per evitare di chiudere lo statement dalla cache
+            PreparedStatement stmt = statementCache.get("INSERT_TELEPORT");
+            connection.setAutoCommit(false);
+
+            int processed = 0;
+            TeleportRecord record;
+
+            // Processa batch
+            while ((record = pendingInserts.poll()) != null && processed < BATCH_SIZE) {
+                stmt.setString(1, record.playerName);
+                stmt.setString(2, record.cityName);
+                stmt.setString(3, record.date.toString());
+                stmt.addBatch();
+                processed++;
+            }
+
+            if (processed > 0) {
+                stmt.executeBatch();
+                connection.commit();
+                batchedOperations.addAndGet(processed);
+
+                logger.fine("Processed " + processed + " teleport records in batch");
+            }
 
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Errore nella preparazione degli statement", e);
-            throw new RuntimeException("Impossibile preparare gli statement del database", e);
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                logger.log(Level.WARNING, "Rollback failed", rollbackEx);
+            }
+            logger.log(Level.WARNING, "Batch insert failed", e);
         } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                logger.warning("Error resetting auto-commit: " + e.getMessage());
+            }
             dbLock.writeLock().unlock();
         }
     }
 
     /**
-     * Controlla se il giocatore può fare QUALSIASI teleport (cooldown globale)
+     * Controlla se il giocatore può fare QUALSIASI teleport (cooldown globale) - OTTIMIZZATO
      */
     public boolean canTeleport(String playerName, int cooldownDays) {
         if (cooldownDays <= 0) return true;
 
-        // Validazione input
         if (!isValidPlayerName(playerName)) {
             logger.warning("Tentativo di accesso con nome giocatore non valido: " + playerName);
             return false;
         }
 
+        totalQueries.incrementAndGet();
         dbLock.readLock().lock();
         try {
-            selectLastTeleportStmt.setString(1, sanitizePlayerName(playerName));
+            PreparedStatement stmt = statementCache.get("SELECT_LAST_TELEPORT");
+            stmt.setString(1, sanitizePlayerName(playerName));
 
-            try (ResultSet rs = selectLastTeleportStmt.executeQuery()) {
+            try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String lastTeleportStr = rs.getString("teleport_date");
                     if (lastTeleportStr != null) {
@@ -161,11 +265,11 @@ public class DatabaseManager {
                                 lastTeleport.plusDays(cooldownDays).equals(now);
                     }
                 }
-                return true; // Prima volta che fa un teleport
+                return true;
             }
 
         } catch (SQLException e) {
-            logger.log(Level.WARNING, "Errore nel controllo cooldown globale per: " + playerName, e);
+            logger.log(Level.WARNING, "Errore nel controllo cooldown per: " + playerName, e);
             return true; // In caso di errore, permetti il teleport
         } finally {
             dbLock.readLock().unlock();
@@ -173,21 +277,18 @@ public class DatabaseManager {
     }
 
     /**
-     * Ottiene i giorni rimanenti del cooldown globale
+     * Ottiene i giorni rimanenti del cooldown globale - OTTIMIZZATO
      */
     public int getRemainingDays(String playerName, int cooldownDays) {
-        if (cooldownDays <= 0) return 0;
+        if (cooldownDays <= 0 || !isValidPlayerName(playerName)) return 0;
 
-        // Validazione input
-        if (!isValidPlayerName(playerName)) {
-            return 0;
-        }
-
+        totalQueries.incrementAndGet();
         dbLock.readLock().lock();
         try {
-            selectLastTeleportStmt.setString(1, sanitizePlayerName(playerName));
+            PreparedStatement stmt = statementCache.get("SELECT_LAST_TELEPORT");
+            stmt.setString(1, sanitizePlayerName(playerName));
 
-            try (ResultSet rs = selectLastTeleportStmt.executeQuery()) {
+            try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String lastTeleportStr = rs.getString("teleport_date");
                     if (lastTeleportStr != null) {
@@ -212,23 +313,21 @@ public class DatabaseManager {
     }
 
     /**
-     * Ottiene la data dell'ultimo teleport (qualsiasi città)
+     * Ottiene la data dell'ultimo teleport - OTTIMIZZATO con cache
      */
     public LocalDate getLastTeleportDate(String playerName) {
-        if (!isValidPlayerName(playerName)) {
-            return null;
-        }
+        if (!isValidPlayerName(playerName)) return null;
 
+        totalQueries.incrementAndGet();
         dbLock.readLock().lock();
         try {
-            selectLastTeleportStmt.setString(1, sanitizePlayerName(playerName));
+            PreparedStatement stmt = statementCache.get("SELECT_LAST_TELEPORT");
+            stmt.setString(1, sanitizePlayerName(playerName));
 
-            try (ResultSet rs = selectLastTeleportStmt.executeQuery()) {
+            try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String dateStr = rs.getString("teleport_date");
-                    if (dateStr != null) {
-                        return LocalDate.parse(dateStr);
-                    }
+                    return dateStr != null ? LocalDate.parse(dateStr) : null;
                 }
                 return null;
             }
@@ -242,22 +341,19 @@ public class DatabaseManager {
     }
 
     /**
-     * Ottiene la città dell'ultimo teleport
+     * Ottiene la città dell'ultimo teleport - OTTIMIZZATO
      */
     public String getLastTeleportCity(String playerName) {
-        if (!isValidPlayerName(playerName)) {
-            return null;
-        }
+        if (!isValidPlayerName(playerName)) return null;
 
+        totalQueries.incrementAndGet();
         dbLock.readLock().lock();
         try {
-            selectLastTeleportStmt.setString(1, sanitizePlayerName(playerName));
+            PreparedStatement stmt = statementCache.get("SELECT_LAST_TELEPORT");
+            stmt.setString(1, sanitizePlayerName(playerName));
 
-            try (ResultSet rs = selectLastTeleportStmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("city_name");
-                }
-                return null;
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? rs.getString("city_name") : null;
             }
 
         } catch (SQLException e) {
@@ -269,61 +365,68 @@ public class DatabaseManager {
     }
 
     /**
-     * Registra un nuovo teleport
+     * Registra un nuovo teleport - OTTIMIZZATO con batch processing
      */
     public void recordTeleport(String playerName, String cityName) {
-        // Validazione input rigorosa
-        if (!isValidPlayerName(playerName)) {
-            logger.warning("Tentativo di registrare teleport con nome giocatore non valido: " + playerName);
+        if (!isValidPlayerName(playerName) || !isValidCityName(cityName)) {
+            logger.warning("Tentativo di registrare teleport con dati non validi: " +
+                    playerName + " -> " + cityName);
             return;
         }
 
-        if (!isValidCityName(cityName)) {
-            logger.warning("Tentativo di registrare teleport con nome città non valido: " + cityName);
-            return;
-        }
+        // Aggiunge alla coda per batch processing
+        TeleportRecord record = new TeleportRecord(
+                sanitizePlayerName(playerName),
+                sanitizeCityName(cityName),
+                LocalDate.now()
+        );
 
+        if (!pendingInserts.offer(record)) {
+            logger.warning("Failed to queue teleport record - queue full");
+            // Fallback: inserimento diretto
+            insertTeleportDirect(record);
+        }
+    }
+
+    private void insertTeleportDirect(TeleportRecord record) {
         dbLock.writeLock().lock();
         try {
-            insertTeleportStmt.setString(1, sanitizePlayerName(playerName));
-            insertTeleportStmt.setString(2, sanitizeCityName(cityName));
-            insertTeleportStmt.setString(3, LocalDate.now().toString());
+            PreparedStatement stmt = statementCache.get("INSERT_TELEPORT");
+            stmt.setString(1, record.playerName);
+            stmt.setString(2, record.cityName);
+            stmt.setString(3, record.date.toString());
 
-            int affected = insertTeleportStmt.executeUpdate();
-            if (affected > 0) {
-                logger.fine("Registrato teleport: " + playerName + " -> " + cityName);
-            }
+            stmt.executeUpdate();
+            logger.fine("Direct insert: " + record.playerName + " -> " + record.cityName);
 
         } catch (SQLException e) {
-            logger.log(Level.WARNING, "Errore nella registrazione del teleport", e);
+            logger.log(Level.WARNING, "Errore nell'inserimento diretto teleport", e);
         } finally {
             dbLock.writeLock().unlock();
         }
     }
 
     /**
-     * Ottiene tutti i teleport di un giocatore
+     * Ottiene tutti i teleport di un giocatore - OTTIMIZZATO
      */
     public Map<String, LocalDate> getPlayerTeleports(String playerName) {
         Map<String, LocalDate> teleports = new HashMap<>();
+        if (!isValidPlayerName(playerName)) return teleports;
 
-        if (!isValidPlayerName(playerName)) {
-            return teleports; // Restituisce mappa vuota per input non valido
-        }
-
+        totalQueries.incrementAndGet();
         dbLock.readLock().lock();
         try {
-            selectPlayerTeleportsStmt.setString(1, sanitizePlayerName(playerName));
+            PreparedStatement stmt = statementCache.get("SELECT_PLAYER_TELEPORTS");
+            stmt.setString(1, sanitizePlayerName(playerName));
 
-            try (ResultSet rs = selectPlayerTeleportsStmt.executeQuery()) {
+            try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     String cityName = rs.getString("city_name");
                     String dateStr = rs.getString("last_teleport");
 
                     if (cityName != null && dateStr != null) {
                         try {
-                            LocalDate date = LocalDate.parse(dateStr);
-                            teleports.put(cityName, date);
+                            teleports.put(cityName, LocalDate.parse(dateStr));
                         } catch (Exception e) {
                             logger.warning("Data non valida nel database: " + dateStr);
                         }
@@ -341,22 +444,28 @@ public class DatabaseManager {
     }
 
     /**
-     * Pulisce i record vecchi dal database
+     * Pulisce i record vecchi - OTTIMIZZATO con batch delete
      */
     public void clearOldTeleports(int daysToKeep) {
-        if (daysToKeep < 1) {
-            logger.warning("Tentativo di pulizia con giorni non validi: " + daysToKeep);
-            return;
-        }
+        if (daysToKeep < 1) return;
+
+        // Forza processamento batch pendenti prima della pulizia
+        processBatchInserts();
 
         dbLock.writeLock().lock();
         try {
             LocalDate cutoffDate = LocalDate.now().minusDays(daysToKeep);
-            deleteOldTeleportsStmt.setString(1, cutoffDate.toString());
+            PreparedStatement stmt = statementCache.get("DELETE_OLD");
+            stmt.setString(1, cutoffDate.toString());
 
-            int deleted = deleteOldTeleportsStmt.executeUpdate();
+            int deleted = stmt.executeUpdate();
             if (deleted > 0) {
-                logger.info("Eliminati " + deleted + " record di teleport più vecchi di " + daysToKeep + " giorni");
+                logger.info("Eliminati " + deleted + " record più vecchi di " + daysToKeep + " giorni");
+
+                // CORREZIONE 4: Sostituito PRAGMA optimize con VACUUM
+                try (Statement optimizeStmt = connection.createStatement()) {
+                    optimizeStmt.execute("VACUUM");
+                }
             }
 
         } catch (SQLException e) {
@@ -367,22 +476,55 @@ public class DatabaseManager {
     }
 
     /**
-     * Chiude la connessione al database in modo sicuro
+     * Chiude il database in modo ottimizzato
      */
     public void close() {
+        // Ferma batch processor
+        batchProcessor.shutdown();
+        try {
+            if (!batchProcessor.awaitTermination(5, TimeUnit.SECONDS)) {
+                batchProcessor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            batchProcessor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        // Processa batch rimanenti
+        processBatchInserts();
+
         dbLock.writeLock().lock();
         try {
             // Chiudi prepared statements
-            closeStatement(insertTeleportStmt);
-            closeStatement(selectLastTeleportStmt);
-            closeStatement(selectPlayerTeleportsStmt);
-            closeStatement(deleteOldTeleportsStmt);
+            statementCache.values().forEach(stmt -> {
+                try {
+                    stmt.close();
+                } catch (SQLException e) {
+                    logger.warning("Error closing prepared statement: " + e.getMessage());
+                }
+            });
+            statementCache.clear();
 
-            // Chiudi connessione
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                logger.info("Connessione database chiusa correttamente");
+            // Chiudi connection pool
+            Connection poolConn;
+            while ((poolConn = connectionPool.poll()) != null) {
+                try {
+                    poolConn.close();
+                } catch (SQLException e) {
+                    logger.warning("Error closing pooled connection: " + e.getMessage());
+                }
             }
+
+            // Chiudi connessione principale
+            if (connection != null && !connection.isClosed()) {
+                // CORREZIONE 4: Sostituito PRAGMA optimize con VACUUM prima della chiusura
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.execute("VACUUM");
+                }
+                connection.close();
+                logger.info("Database chiuso correttamente");
+            }
+
         } catch (SQLException e) {
             logger.log(Level.WARNING, "Errore nella chiusura del database", e);
         } finally {
@@ -390,17 +532,7 @@ public class DatabaseManager {
         }
     }
 
-    private void closeStatement(PreparedStatement statement) {
-        if (statement != null) {
-            try {
-                statement.close();
-            } catch (SQLException e) {
-                logger.log(Level.WARNING, "Errore nella chiusura dello statement", e);
-            }
-        }
-    }
-
-    // Metodi di validazione e sanitizzazione
+    // Metodi di validazione ottimizzati
     private boolean isValidPlayerName(String playerName) {
         return playerName != null && SAFE_PLAYER_NAME_PATTERN.matcher(playerName).matches();
     }
@@ -410,18 +542,58 @@ public class DatabaseManager {
     }
 
     private String sanitizePlayerName(String playerName) {
-        if (playerName == null) return "";
-        return playerName.trim().toLowerCase();
+        return playerName == null ? "" : playerName.trim().toLowerCase();
     }
 
     private String sanitizeCityName(String cityName) {
         if (cityName == null) return "";
-        return cityName.trim().toLowerCase().substring(0, Math.min(cityName.length(), 50));
+        String sanitized = cityName.trim().toLowerCase();
+        return sanitized.length() > 50 ? sanitized.substring(0, 50) : sanitized;
     }
 
     /**
-     * Metodi deprecati mantenuti per compatibilità
+     * Statistiche database ottimizzate
      */
+    public String getDatabaseStats() {
+        dbLock.readLock().lock();
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as total FROM player_teleports")) {
+
+            if (rs.next()) {
+                int totalRecords = rs.getInt("total");
+                long dbSize = dbFile.length() / 1024; // KB
+                int queries = totalQueries.get();
+                int batched = batchedOperations.get();
+
+                return String.format("DB: %d records, %d KB, %d queries, %d batched",
+                        totalRecords, dbSize, queries, batched);
+            }
+
+        } catch (SQLException e) {
+            logger.log(Level.WARNING, "Errore statistiche database", e);
+        } finally {
+            dbLock.readLock().unlock();
+        }
+
+        return "Statistiche non disponibili";
+    }
+
+    public boolean checkDatabaseIntegrity() {
+        dbLock.readLock().lock();
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("PRAGMA integrity_check")) {
+
+            return rs.next() && "ok".equals(rs.getString(1));
+
+        } catch (SQLException e) {
+            logger.log(Level.WARNING, "Errore controllo integrità", e);
+            return false;
+        } finally {
+            dbLock.readLock().unlock();
+        }
+    }
+
+    // Metodi deprecati per compatibilità
     @Deprecated
     public boolean canTeleportToCity(String playerName, String cityName, int cooldownDays) {
         return canTeleport(playerName, cooldownDays);
@@ -432,49 +604,16 @@ public class DatabaseManager {
         return getRemainingDays(playerName, cooldownDays);
     }
 
-    /**
-     * Ottiene statistiche del database per debugging
-     */
-    public String getDatabaseStats() {
-        dbLock.readLock().lock();
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as total FROM player_teleports")) {
+    // Classe helper per batch operations
+    private static class TeleportRecord {
+        final String playerName;
+        final String cityName;
+        final LocalDate date;
 
-            if (rs.next()) {
-                int totalRecords = rs.getInt("total");
-                long dbSize = dbFile.length() / 1024; // KB
-
-                return String.format("Database: %d record, %d KB", totalRecords, dbSize);
-            }
-
-        } catch (SQLException e) {
-            logger.log(Level.WARNING, "Errore nel recupero statistiche database", e);
-        } finally {
-            dbLock.readLock().unlock();
+        TeleportRecord(String playerName, String cityName, LocalDate date) {
+            this.playerName = playerName;
+            this.cityName = cityName;
+            this.date = date;
         }
-
-        return "Statistiche non disponibili";
-    }
-
-    /**
-     * Verifica l'integrità del database
-     */
-    public boolean checkDatabaseIntegrity() {
-        dbLock.readLock().lock();
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("PRAGMA integrity_check")) {
-
-            if (rs.next()) {
-                String result = rs.getString(1);
-                return "ok".equals(result);
-            }
-
-        } catch (SQLException e) {
-            logger.log(Level.WARNING, "Errore nel controllo integrità database", e);
-        } finally {
-            dbLock.readLock().unlock();
-        }
-
-        return false;
     }
 }

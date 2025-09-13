@@ -1,61 +1,73 @@
-# Configurazione LocateCities Plugin
-# ===================================
+# Configurazione LocateCities Plugin - VERSIONE OTTIMIZZATA
+# ==========================================================
 
 # Punto di origine: coordinate geografiche reali che corrispondono al punto (0,0) in Minecraft
-# Esempio: se la tua mappa ha Roma al centro, usa le coordinate di Roma
 lat_origin: 41.9028    # Latitudine di Roma (esempio)
 lon_origin: 12.4964    # Longitudine di Roma (esempio)
 
-# Fattore di scala
-# Determina quanti blocchi Minecraft corrispondono a un grado di latitudine/longitudine
-# Esempi:
-# - scale: 100000 = 1 blocco per ogni ~1.11 metri (scala molto dettagliata)
-# - scale: 10000 = 1 blocco per ogni ~11.1 metri
-# - scale: 1000 = 1 blocco per ogni ~111 metri
-# - scale: 100 = 1 blocco per ogni ~1.11 km (scala compressa)
+# Fattore di scala ottimizzato
 scale: 1000.0
 
-# Altezza Y di default per le città (se use_terrain_height è false)
+# Altezza Y di default
 y_default: 64
 
 # Impostazioni funzionalità
-enable_teleport: true          # Permette il teletrasporto con /citta <nome> tp
-use_terrain_height: true       # Usa l'altezza del terreno invece di y_default
+enable_teleport: true
+use_terrain_height: true
 
-# Impostazioni API
-api_timeout: 5000              # Timeout per le richieste API in millisecondi
-cache_duration_hours: 24       # Durata cache delle città in ore
+# Impostazioni API ottimizzate per performance
+api_timeout: 8000              # Aumentato a 8 secondi per ridurre fallimenti
+cache_duration_hours: 48       # Aumentato a 48 ore per ridurre chiamate API
 
-# Impostazioni avanzate
-# =====================
+# Impostazioni avanzate ottimizzate
+invert_x: false
+invert_z: false
 
-# Invertire gli assi (se la tua mappa è ruotata)
-invert_x: false                # Inverte l'asse X (Est-Ovest)
-invert_z: false                # Inverte l'asse Z (Nord-Sud)
-
-# Impostazioni Economy (Vault)
-# ============================
+# Impostazioni Economy
 economy:
-  enable: true                 # Abilita il sistema economico
-  search_cost: 10.0           # Costo per cercare una città
-  teleport_cost: 50.0         # Costo per teletrasportarsi
-  free_distance: 1000         # Distanza in blocchi entro cui il teleport è gratuito
+  enable: true
+  search_cost: 10.0
+  teleport_cost: 50.0
+  free_distance: 1000
 
-# Rate Limiting
-# =============
+# Rate Limiting ottimizzato per performance
 rate_limit:
-  enabled: true               # Abilita il rate limiting
-  search_cooldown: 3          # Secondi tra una ricerca e l'altra per giocatore
-  teleport_cooldown: 10       # Secondi tra un teleport e l'altro per giocatore
+  enabled: true
+  search_cooldown: 2          # Ridotto da 3 a 2 secondi
+  teleport_cooldown: 5        # Ridotto da 10 a 5 secondi
 
-# Sistema Cooldown Giorni per Teleport
-# ====================================
+# Sistema Cooldown Giorni
 teleport_day_cooldown:
-  enabled: true               # Abilita il sistema cooldown giorni
-  days: 7                     # Giorni di attesa tra teleport alla stessa città
+  enabled: true
+  days: 7
 
-# Messaggi personalizzabili
-# ========================
+# NUOVE IMPOSTAZIONI PERFORMANCE
+# ==============================
+performance:
+  # Cache settings ottimizzate
+  max_cache_size: 500           # Limite cache città
+  cache_cleanup_interval: 600   # Cleanup ogni 10 minuti (secondi)
+
+  # Database settings
+  database_batch_size: 50       # Batch size per inserimenti
+  database_batch_timeout: 30    # Timeout batch in secondi
+  connection_pool_size: 3       # Numero connessioni pool
+
+  # Memory management
+  max_player_stats: 1000        # Max giocatori nelle statistiche
+  max_city_stats: 1000          # Max città nelle statistiche
+  stats_save_interval: 300      # Salvataggio stats ogni 5 minuti
+
+  # Threading
+  async_operations: true        # Abilita operazioni asincrone
+  thread_pool_size: 2           # Numero thread per I/O
+
+  # Logging ottimizzato
+  log_level: "INFO"             # Ridotto logging per performance
+  log_cache_operations: false   # Disabilita log cache dettagliati
+  log_database_operations: false # Disabilita log database dettagliati
+
+# Messaggi (invariati ma ottimizzati)
 messages:
   searching: "&e🔍 Ricerca di &f{city} &ein corso..."
   found: "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}"

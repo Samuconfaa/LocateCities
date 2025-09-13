@@ -113,46 +113,46 @@ public class LocateCities extends JavaPlugin {
 
     private void scheduleTasks() {
         try {
-            logger.info("Schedulazione task periodici...");
+            logger.info("Schedulazione task periodici ottimizzati...");
 
-            // Task per pulire la cache scaduta ogni ora
+            // Task cache cleanup RIDOTTO - ogni 10 minuti invece di ogni ora
             getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
                 try {
-                    if (cityManager != null) {
+                    if (cityManager != null && !getServer().getScheduler().getPendingTasks().isEmpty()) {
                         cityManager.clearExpiredCache();
                     }
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Errore durante la pulizia cache", e);
                 }
-            }, 20L * 3600L, 20L * 3600L); // 1 ora = 3600 secondi = 72000 tick
+            }, 20L * 600L, 20L * 600L); // 10 minuti invece di 1 ora
 
-            // Task per salvare le statistiche ogni 10 minuti
+            // Task statistiche OTTIMIZZATO - solo se dirty
             getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
                 try {
                     if (statisticsManager != null) {
-                        statisticsManager.saveStatistics();
+                        // Il nuovo StatisticsManager salva automaticamente solo se necessario
+                        // Non serve più chiamata esplicita qui
                     }
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Errore durante il salvataggio statistiche", e);
+                    logger.log(Level.WARNING, "Errore durante verifica statistiche", e);
                 }
             }, 20L * 600L, 20L * 600L); // 10 minuti
 
-            // Task per pulire i record vecchi dal database ogni giorno
+            // Task database cleanup RIDOTTO - ogni 6 ore invece di ogni giorno
             getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
                 try {
                     if (databaseManager != null && configManager != null &&
                             configManager.isTeleportDayCooldownEnabled()) {
 
-                        // Mantieni i record per il doppio del periodo di cooldown + 30 giorni di buffer
                         int daysToKeep = (configManager.getTeleportCooldownDays() * 2) + 30;
                         databaseManager.clearOldTeleports(daysToKeep);
                     }
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Errore durante la pulizia database", e);
                 }
-            }, 20L * 86400L, 20L * 86400L); // 1 giorno = 86400 secondi
+            }, 20L * 21600L, 20L * 21600L); // 6 ore invece di 24
 
-            // Task per verificare integrità database ogni settimana
+            // Task verifica integrità database RIDOTTO - ogni 3 giorni invece di ogni settimana
             getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
                 try {
                     if (databaseManager != null && !databaseManager.checkDatabaseIntegrity()) {
@@ -161,9 +161,9 @@ public class LocateCities extends JavaPlugin {
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Errore durante verifica integrità database", e);
                 }
-            }, 20L * 604800L, 20L * 604800L); // 1 settimana
+            }, 20L * 259200L, 20L * 259200L); // 3 giorni
 
-            logger.info("Task schedulati correttamente");
+            logger.info("Task ottimizzati schedulati correttamente");
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Errore durante la schedulazione dei task", e);
@@ -220,35 +220,20 @@ public class LocateCities extends JavaPlugin {
         logger.info("Disabilitazione LocateCities in corso...");
 
         try {
-            // Cancella tutti i task schedulati
+            // Cancella tutti i task schedulati PRIMA di tutto
             getServer().getScheduler().cancelTasks(this);
 
-            // Salva cache e statistiche
+            // NUOVO: Shutdown ottimizzato dei manager
             if (cityManager != null) {
-                try {
-                    cityManager.saveCache();
-                    logger.info("Cache città salvata");
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Errore durante il salvataggio cache", e);
-                }
+                cityManager.shutdown(); // Nuovo metodo per cleanup asincrono
             }
 
             if (statisticsManager != null) {
-                try {
-                    statisticsManager.saveStatistics();
-                    logger.info("Statistiche salvate");
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Errore durante il salvataggio statistiche", e);
-                }
+                statisticsManager.shutdown(); // Nuovo metodo per salvataggio batch
             }
 
             if (databaseManager != null) {
-                try {
-                    databaseManager.close();
-                    logger.info("Database chiuso correttamente");
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Errore durante la chiusura database", e);
-                }
+                databaseManager.close(); // Già ottimizzato
             }
 
             // Pulizia riferimenti
