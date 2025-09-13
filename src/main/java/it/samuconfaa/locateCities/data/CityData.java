@@ -1,4 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.data;
+
+import it.samuconfaa.locateCities.managers.ConfigManager;
 
 public class CityData {
 

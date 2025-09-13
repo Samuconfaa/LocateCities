@@ -1,8 +1,10 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.managers;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import it.samuconfaa.locateCities.data.CityData;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;

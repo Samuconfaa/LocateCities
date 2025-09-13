@@ -1,5 +1,15 @@
 package it.samuconfaa.locateCities;
 
+import it.samuconfaa.locateCities.commands.AdminCommand;
+import it.samuconfaa.locateCities.commands.AdminTabCompleter;
+import it.samuconfaa.locateCities.commands.CityCommand;
+import it.samuconfaa.locateCities.commands.CityTabCompleter;
+import it.samuconfaa.locateCities.database.DatabaseManager;
+import it.samuconfaa.locateCities.database.OfflineCityDatabase;
+import it.samuconfaa.locateCities.managers.CityManager;
+import it.samuconfaa.locateCities.managers.ConfigManager;
+import it.samuconfaa.locateCities.managers.EconomyManager;
+import it.samuconfaa.locateCities.managers.StatisticsManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class LocateCities extends JavaPlugin {
@@ -24,10 +34,12 @@ public class LocateCities extends JavaPlugin {
         databaseManager = new DatabaseManager(this);
         cityManager = new CityManager(this, configManager);
 
-        // Registra i comandi
+        // Registra i comandi con i nuovi tab completers
         getCommand("citta").setExecutor(new CityCommand(this, cityManager, economyManager, rateLimiter, statisticsManager, databaseManager));
         getCommand("citta").setTabCompleter(new CityTabCompleter());
+
         getCommand("cittaadmin").setExecutor(new AdminCommand(this, cityManager, statisticsManager));
+        getCommand("cittaadmin").setTabCompleter(new AdminTabCompleter());
 
         // Task per pulire la cache scaduta ogni ora
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
@@ -67,6 +79,13 @@ public class LocateCities extends JavaPlugin {
             getLogger().info("Rate limiting abilitato - Ricerca: " + configManager.getSearchCooldown() +
                     "s, Teleport: " + configManager.getTeleportCooldown() + "s");
         }
+
+        getLogger().info("Nuovi comandi disponibili:");
+        getLogger().info("- /citta search <nome> - Cerca una città");
+        getLogger().info("- /citta tp <nome> - Teletrasportati");
+        getLogger().info("- /citta history - Cronologia teleport");
+        getLogger().info("- /citta tutorial - Tutorial interattivo");
+        getLogger().info("Tab completion abilitato per tutti i comandi!");
     }
 
     @Override

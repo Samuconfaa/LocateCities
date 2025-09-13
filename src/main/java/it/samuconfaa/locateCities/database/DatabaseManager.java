@@ -1,4 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.database;
+
+import it.samuconfaa.locateCities.LocateCities;
 
 import java.io.File;
 import java.sql.*;

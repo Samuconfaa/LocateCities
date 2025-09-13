@@ -1,5 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.managers;
 
+import it.samuconfaa.locateCities.LocateCities;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;

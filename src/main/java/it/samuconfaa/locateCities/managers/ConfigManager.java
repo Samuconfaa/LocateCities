@@ -1,5 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.managers;
 
+import it.samuconfaa.locateCities.LocateCities;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -46,7 +47,7 @@ public class ConfigManager {
         config.addDefault("teleport_day_cooldown.enabled", true);
         config.addDefault("teleport_day_cooldown.days", 7);
 
-        // Message defaults
+        // Message defaults - AGGIORNATI per i nuovi comandi
         config.addDefault("messages.searching", "&e🔍 Ricerca di &f{city} &ein corso...");
         config.addDefault("messages.found", "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}");
         config.addDefault("messages.teleported", "&a✈ Teletrasportato a &f{city}&a!");
@@ -71,8 +72,9 @@ public class ConfigManager {
         config.addDefault("messages.teleport_history_header", "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝");
         config.addDefault("messages.teleport_history_entry", "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)");
         config.addDefault("messages.teleport_history_empty", "&7Nessun teleport effettuato ancora.");
-        config.addDefault("messages.teleport_history_footer", "&7Usa &a/citta <nome> tp &7per teletrasportarti!");
+        config.addDefault("messages.teleport_history_footer", "&7Usa &a/citta tp <nome> &7per teletrasportarti!");
         config.addDefault("messages.cooldown_bypassed", "&a✅ Il cooldown per i teleport è stato resettato da un admin!");
+        config.addDefault("messages.teleport_global_cooldown", "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)");
 
         config.options().copyDefaults(true);
         plugin.saveConfig();

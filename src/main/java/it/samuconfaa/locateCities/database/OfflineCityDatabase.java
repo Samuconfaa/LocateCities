@@ -1,4 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.database;
+
+import it.samuconfaa.locateCities.data.CityData;
 
 import java.util.HashMap;
 import java.util.Map;

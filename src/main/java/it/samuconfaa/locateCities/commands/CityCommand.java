@@ -1,5 +1,11 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.commands;
 
+import it.samuconfaa.locateCities.*;
+import it.samuconfaa.locateCities.data.CityData;
+import it.samuconfaa.locateCities.database.DatabaseManager;
+import it.samuconfaa.locateCities.managers.CityManager;
+import it.samuconfaa.locateCities.managers.EconomyManager;
+import it.samuconfaa.locateCities.managers.StatisticsManager;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -33,44 +39,127 @@ public class CityCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
-                    "error", "Uso: /citta <nome> [tp] | /citta history | /citta tutorial"));
+            sendHelp(sender);
             return true;
         }
 
-        // Sottcomando history
-        if (args[0].equalsIgnoreCase("history")) {
-            return handleHistory(sender);
+        String subCommand = args[0].toLowerCase();
+
+        switch (subCommand) {
+            case "search":
+                return handleSearch(sender, args);
+            case "tp":
+            case "teleport":
+                return handleTeleport(sender, args);
+            case "history":
+                return handleHistory(sender);
+            case "tutorial":
+                return handleTutorial(sender);
+            default:
+                sendHelp(sender);
+                return true;
+        }
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage("§6╔══════════════════════════════════════╗");
+        sender.sendMessage("§6║§e          LOCATECITIES HELP          §6║");
+        sender.sendMessage("§6╠══════════════════════════════════════╣");
+        sender.sendMessage("§6║§a /citta search <nome> §7- Cerca città    §6║");
+        sender.sendMessage("§6║§a /citta tp <nome> §7- Teletrasportati     §6║");
+        sender.sendMessage("§6║§a /citta history §7- Cronologia teleport  §6║");
+        sender.sendMessage("§6║§a /citta tutorial §7- Guida interattiva   §6║");
+        sender.sendMessage("§6╚══════════════════════════════════════╝");
+    }
+
+    private boolean handleSearch(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
+                    "error", "Uso: /citta search <nome_città>"));
+            return true;
         }
 
-        // Sottomando tutorial
-        if (args[0].equalsIgnoreCase("tutorial")) {
-            return handleTutorial(sender);
+        String cityName = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+        return performCitySearch(sender, cityName, false);
+    }
+
+    private boolean handleTeleport(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
+                    "error", "Uso: /citta tp <nome_città>"));
+            return true;
         }
 
-        String cityName = args[0];
-        boolean teleport = args.length > 1 && args[1].equalsIgnoreCase("tp");
-
-        // Controlla se il teleport è richiesto ma il sender non è un player
-        if (teleport && !(sender instanceof Player)) {
+        if (!(sender instanceof Player)) {
             sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
                     "error", "Solo i giocatori possono teletrasportarsi!"));
             return true;
         }
 
+        String cityName = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
+        return performCitySearch(sender, cityName, true);
+    }
+
+    private boolean handleHistory(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
+                    "error", "Solo i giocatori possono vedere la cronologia!"));
+            return true;
+        }
+
+        Player player = (Player) sender;
+        Map<String, LocalDate> teleports = databaseManager.getPlayerTeleports(player.getName());
+
+        player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_header"));
+        player.sendMessage("");
+
+        if (teleports.isEmpty()) {
+            player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_empty"));
+        } else {
+            int index = 1;
+            LocalDate today = LocalDate.now();
+
+            for (Map.Entry<String, LocalDate> entry : teleports.entrySet()) {
+                String cityName = entry.getKey();
+                LocalDate teleportDate = entry.getValue();
+                long daysAgo = ChronoUnit.DAYS.between(teleportDate, today);
+
+                String formattedDate = teleportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+                player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_entry",
+                        "index", String.valueOf(index),
+                        "city", cityName,
+                        "date", formattedDate,
+                        "days_ago", String.valueOf(daysAgo)));
+                index++;
+            }
+        }
+
+        player.sendMessage("");
+        player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
+        return true;
+    }
+
+    private boolean handleTutorial(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
+                    "error", "Il tutorial è disponibile solo per i giocatori!"));
+            return true;
+        }
+
+        // Avvia il tutorial (delegato alla classe TutorialCommand)
+        TutorialCommand tutorialCommand = new TutorialCommand(plugin);
+        return tutorialCommand.onCommand(sender, null, "tutorial", new String[0]);
+    }
+
+    private boolean performCitySearch(CommandSender sender, String cityName, boolean teleport) {
         Player player = sender instanceof Player ? (Player) sender : null;
 
         // Controlli per i giocatori
         if (player != null) {
-            // Rate limiting per ricerca
-            if (!rateLimiter.canSearch(player)) {
-                int remaining = rateLimiter.getRemainingSearchTime(player);
-                player.sendMessage(plugin.getConfigManager().getMessage("rate_limited_search",
-                        "seconds", String.valueOf(remaining)));
-                return true;
-            }
 
-            // Controllo economy per ricerca
+
+
             if (economyManager.isEconomyEnabled()) {
                 double searchCost = economyManager.getSearchCost();
                 if (!economyManager.hasEnoughMoney(player, searchCost)) {
@@ -94,13 +183,7 @@ public class CityCommand implements CommandExecutor {
                     return true;
                 }
 
-                // Rate limiting per teleport
-                if (!rateLimiter.canTeleport(player)) {
-                    int remaining = rateLimiter.getRemainingTeleportTime(player);
-                    player.sendMessage(plugin.getConfigManager().getMessage("rate_limited_teleport",
-                            "seconds", String.valueOf(remaining)));
-                    return true;
-                }
+
 
                 // Controllo cooldown globale per teleport (qualsiasi città)
                 if (plugin.getConfigManager().isTeleportDayCooldownEnabled() && !player.hasPermission("locatecities.free")) {
@@ -158,10 +241,10 @@ public class CityCommand implements CommandExecutor {
 
                 // Se è richiesto il teleport
                 if (teleport && player != null) {
-                    handleTeleport(player, cityData, coords);
+                    handleTeleportExecution(player, cityData, coords);
                 } else if (!teleport && player != null && cityManager.configManager.isTeleportEnabled()) {
                     // Suggerisci il teleport se disponibile
-                    player.sendMessage("§7💡 Usa '/citta " + cityName + " tp' per teletrasportarti!");
+                    player.sendMessage("§7💡 Usa '§a/citta tp " + cityName + "§7' per teletrasportarti!");
                 }
             });
         });
@@ -169,59 +252,7 @@ public class CityCommand implements CommandExecutor {
         return true;
     }
 
-    private boolean handleHistory(CommandSender sender) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
-                    "error", "Solo i giocatori possono vedere la cronologia!"));
-            return true;
-        }
-
-        Player player = (Player) sender;
-        Map<String, LocalDate> teleports = databaseManager.getPlayerTeleports(player.getName());
-
-        player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_header"));
-        player.sendMessage("");
-
-        if (teleports.isEmpty()) {
-            player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_empty"));
-        } else {
-            int index = 1;
-            LocalDate today = LocalDate.now();
-
-            for (Map.Entry<String, LocalDate> entry : teleports.entrySet()) {
-                String cityName = entry.getKey();
-                LocalDate teleportDate = entry.getValue();
-                long daysAgo = ChronoUnit.DAYS.between(teleportDate, today);
-
-                String formattedDate = teleportDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-
-                player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_entry",
-                        "index", String.valueOf(index),
-                        "city", cityName,
-                        "date", formattedDate,
-                        "days_ago", String.valueOf(daysAgo)));
-                index++;
-            }
-        }
-
-        player.sendMessage("");
-        player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
-        return true;
-    }
-
-    private boolean handleTutorial(CommandSender sender) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
-                    "error", "Il tutorial è disponibile solo per i giocatori!"));
-            return true;
-        }
-
-        // Avvia il tutorial (delegato alla classe TutorialCommand)
-        TutorialCommand tutorialCommand = new TutorialCommand(plugin);
-        return tutorialCommand.onCommand(sender, null, "tutorial", new String[0]);
-    }
-
-    private void handleTeleport(Player player, CityData cityData, CityData.MinecraftCoordinates coords) {
+    private void handleTeleportExecution(Player player, CityData cityData, CityData.MinecraftCoordinates coords) {
         Location playerLocation = player.getLocation();
         Location cityLocation = cityManager.getMinecraftLocation(cityData, player.getWorld());
 

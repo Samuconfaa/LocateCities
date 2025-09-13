@@ -81,6 +81,6 @@ messages:
   teleport_history_header: "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝"
   teleport_history_entry: "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)"
   teleport_history_empty: "&7Nessun teleport effettuato ancora."
-  teleport_history_footer: "&7Usa &a/citta <nome> tp &7per teletrasportarti!"
+  teleport_history_footer: "&7Usa &a/citta tp <nome> &7per teletrasportarti!"
   cooldown_bypassed: "&a✅ Il cooldown per i teleport è stato resettato da un admin!"
   teleport_day_cooldown: "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})"

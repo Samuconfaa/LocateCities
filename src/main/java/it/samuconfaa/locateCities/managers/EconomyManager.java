@@ -1,5 +1,6 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.managers;
 
+import it.samuconfaa.locateCities.LocateCities;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;

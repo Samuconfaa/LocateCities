@@ -1,5 +1,8 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.managers;
 
+import it.samuconfaa.locateCities.LocateCities;
+import it.samuconfaa.locateCities.database.OfflineCityDatabase;
+import it.samuconfaa.locateCities.data.CityData;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -13,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 public class CityManager {
 
     private final LocateCities plugin;
-    final ConfigManager configManager;
+    public final ConfigManager configManager;
     private final GeocodingService geocodingService;
     private final Map<String, CityData> cache;
     private final File cacheFile;

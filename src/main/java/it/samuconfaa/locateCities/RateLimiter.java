@@ -1,5 +1,6 @@
 package it.samuconfaa.locateCities;
 
+import it.samuconfaa.locateCities.managers.ConfigManager;
 import org.bukkit.entity.Player;
 
 import java.util.HashMap;

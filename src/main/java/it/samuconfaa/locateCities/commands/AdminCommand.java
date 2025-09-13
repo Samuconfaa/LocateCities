@@ -1,5 +1,8 @@
-package it.samuconfaa.locateCities;
+package it.samuconfaa.locateCities.commands;
 
+import it.samuconfaa.locateCities.managers.CityManager;
+import it.samuconfaa.locateCities.LocateCities;
+import it.samuconfaa.locateCities.managers.StatisticsManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
