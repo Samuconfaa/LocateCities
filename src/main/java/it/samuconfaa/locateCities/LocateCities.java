@@ -12,6 +12,9 @@ import it.samuconfaa.locateCities.managers.EconomyManager;
 import it.samuconfaa.locateCities.managers.StatisticsManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 public class LocateCities extends JavaPlugin {
 
     private CityManager cityManager;
@@ -21,110 +24,359 @@ public class LocateCities extends JavaPlugin {
     private StatisticsManager statisticsManager;
     private DatabaseManager databaseManager;
 
+    private boolean pluginInitialized = false;
+    private final Logger logger = getLogger();
+
     @Override
     public void onEnable() {
-        // Salva la configurazione di default se non esiste
-        saveDefaultConfig();
+        try {
+            initializePlugin();
+            registerCommands();
+            scheduleTasks();
+            logStartupInfo();
 
-        // Inizializza i manager nell'ordine corretto
-        configManager = new ConfigManager(this);
-        economyManager = new EconomyManager(this);
-        rateLimiter = new RateLimiter(configManager);
-        statisticsManager = new StatisticsManager(this);
-        databaseManager = new DatabaseManager(this);
-        cityManager = new CityManager(this, configManager);
+            pluginInitialized = true;
+            logger.info("LocateCities plugin abilitato con successo!");
 
-        // Registra i comandi con i nuovi tab completers
-        getCommand("citta").setExecutor(new CityCommand(this, cityManager, economyManager, rateLimiter, statisticsManager, databaseManager));
-        getCommand("citta").setTabCompleter(new CityTabCompleter());
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore critico durante l'inizializzazione del plugin", e);
+            getServer().getPluginManager().disablePlugin(this);
+        }
+    }
 
-        getCommand("cittaadmin").setExecutor(new AdminCommand(this, cityManager, statisticsManager));
-        getCommand("cittaadmin").setTabCompleter(new AdminTabCompleter());
+    private void initializePlugin() {
+        try {
+            // Salva la configurazione di default se non esiste
+            saveDefaultConfig();
 
-        // Task per pulire la cache scaduta ogni ora
-        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            cityManager.clearExpiredCache();
-        }, 20L * 3600L, 20L * 3600L); // 1 ora = 3600 secondi = 72000 tick
+            // Inizializza i manager nell'ordine corretto con error handling
+            logger.info("Inizializzazione ConfigManager...");
+            configManager = new ConfigManager(this);
 
-        // Task per salvare le statistiche ogni 10 minuti
-        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            if (statisticsManager != null) {
-                statisticsManager.saveStatistics();
+            logger.info("Inizializzazione EconomyManager...");
+            economyManager = new EconomyManager(this);
+
+            logger.info("Inizializzazione RateLimiter...");
+            rateLimiter = new RateLimiter(configManager);
+
+            logger.info("Inizializzazione StatisticsManager...");
+            statisticsManager = new StatisticsManager(this);
+
+            logger.info("Inizializzazione DatabaseManager...");
+            databaseManager = new DatabaseManager(this);
+
+            // Verifica integrità database
+            if (!databaseManager.checkDatabaseIntegrity()) {
+                logger.warning("Controllo integrità database fallito - il database potrebbe essere corrotto");
             }
-        }, 20L * 600L, 20L * 600L); // 10 minuti
 
-        // Task per pulire i record vecchi dal database ogni giorno
-        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            if (databaseManager != null && configManager.isTeleportDayCooldownEnabled()) {
-                // Mantieni i record per il doppio del periodo di cooldown + 30 giorni di buffer
-                int daysToKeep = (configManager.getTeleportCooldownDays() * 2) + 30;
-                databaseManager.clearOldTeleports(daysToKeep);
+            logger.info("Inizializzazione CityManager...");
+            cityManager = new CityManager(this, configManager);
+
+            logger.info("Tutti i manager inizializzati correttamente");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore durante l'inizializzazione dei manager", e);
+            throw new RuntimeException("Inizializzazione fallita", e);
+        }
+    }
+
+    private void registerCommands() {
+        try {
+            // Registra i comandi con i nuovi tab completers
+            logger.info("Registrazione comandi...");
+
+            var cittaCommand = getCommand("citta");
+            if (cittaCommand != null) {
+                cittaCommand.setExecutor(new CityCommand(this, cityManager, economyManager,
+                        rateLimiter, statisticsManager, databaseManager));
+                cittaCommand.setTabCompleter(new CityTabCompleter());
+            } else {
+                throw new RuntimeException("Comando 'citta' non trovato in plugin.yml");
             }
-        }, 20L * 86400L, 20L * 86400L); // 1 giorno = 86400 secondi
 
-        getLogger().info("LocateCities plugin abilitato!");
-        getLogger().info("Database offline contiene " + OfflineCityDatabase.getCityCount() + " città");
+            var adminCommand = getCommand("cittaadmin");
+            if (adminCommand != null) {
+                adminCommand.setExecutor(new AdminCommand(this, cityManager, statisticsManager));
+                adminCommand.setTabCompleter(new AdminTabCompleter());
+            } else {
+                throw new RuntimeException("Comando 'cittaadmin' non trovato in plugin.yml");
+            }
 
-        if (economyManager.isEconomyEnabled()) {
-            getLogger().info("Economy abilitata - Costo ricerca: $" + economyManager.getSearchCost() +
-                    ", Costo teleport: $" + economyManager.getTeleportCost());
+            logger.info("Comandi registrati correttamente");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore durante la registrazione dei comandi", e);
+            throw new RuntimeException("Registrazione comandi fallita", e);
         }
+    }
 
-        if (configManager.isTeleportDayCooldownEnabled()) {
-            getLogger().info("Sistema cooldown giorni attivo - Ogni " + configManager.getTeleportCooldownDays() +
-                    " giorni (cooldown globale per qualsiasi città)");
+    private void scheduleTasks() {
+        try {
+            logger.info("Schedulazione task periodici...");
+
+            // Task per pulire la cache scaduta ogni ora
+            getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+                try {
+                    if (cityManager != null) {
+                        cityManager.clearExpiredCache();
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante la pulizia cache", e);
+                }
+            }, 20L * 3600L, 20L * 3600L); // 1 ora = 3600 secondi = 72000 tick
+
+            // Task per salvare le statistiche ogni 10 minuti
+            getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+                try {
+                    if (statisticsManager != null) {
+                        statisticsManager.saveStatistics();
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante il salvataggio statistiche", e);
+                }
+            }, 20L * 600L, 20L * 600L); // 10 minuti
+
+            // Task per pulire i record vecchi dal database ogni giorno
+            getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+                try {
+                    if (databaseManager != null && configManager != null &&
+                            configManager.isTeleportDayCooldownEnabled()) {
+
+                        // Mantieni i record per il doppio del periodo di cooldown + 30 giorni di buffer
+                        int daysToKeep = (configManager.getTeleportCooldownDays() * 2) + 30;
+                        databaseManager.clearOldTeleports(daysToKeep);
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante la pulizia database", e);
+                }
+            }, 20L * 86400L, 20L * 86400L); // 1 giorno = 86400 secondi
+
+            // Task per verificare integrità database ogni settimana
+            getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+                try {
+                    if (databaseManager != null && !databaseManager.checkDatabaseIntegrity()) {
+                        logger.severe("Controllo integrità database fallito! Possibile corruzione dati.");
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante verifica integrità database", e);
+                }
+            }, 20L * 604800L, 20L * 604800L); // 1 settimana
+
+            logger.info("Task schedulati correttamente");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore durante la schedulazione dei task", e);
+            throw new RuntimeException("Schedulazione task fallita", e);
         }
+    }
 
-        if (configManager.isRateLimitEnabled()) {
-            getLogger().info("Rate limiting abilitato - Ricerca: " + configManager.getSearchCooldown() +
-                    "s, Teleport: " + configManager.getTeleportCooldown() + "s");
+    private void logStartupInfo() {
+        try {
+            logger.info("=== LOCATECITIES STARTUP INFO ===");
+            logger.info("Versione plugin: " + getDescription().getVersion());
+            logger.info("Database offline contiene " + OfflineCityDatabase.getCityCount() + " città");
+
+            if (economyManager != null && economyManager.isEconomyEnabled()) {
+                logger.info("Economy abilitata - Costo ricerca: $" + economyManager.getSearchCost() +
+                        ", Costo teleport: $" + economyManager.getTeleportCost());
+            } else {
+                logger.info("Economy disabilitata");
+            }
+
+            if (configManager != null && configManager.isTeleportDayCooldownEnabled()) {
+                logger.info("Sistema cooldown giorni attivo - Ogni " + configManager.getTeleportCooldownDays() +
+                        " giorni (cooldown globale per qualsiasi città)");
+            } else {
+                logger.info("Sistema cooldown giorni disattivo");
+            }
+
+            if (configManager != null && configManager.isRateLimitEnabled()) {
+                logger.info("Rate limiting abilitato - Ricerca: " + configManager.getSearchCooldown() +
+                        "s, Teleport: " + configManager.getTeleportCooldown() + "s");
+            } else {
+                logger.info("Rate limiting disabilitato");
+            }
+
+            if (databaseManager != null) {
+                logger.info("Statistiche database: " + databaseManager.getDatabaseStats());
+            }
+
+            logger.info("Comandi disponibili:");
+            logger.info("- /citta search <nome> - Cerca una città");
+            logger.info("- /citta tp <nome> - Teletrasportati");
+            logger.info("- /citta history - Cronologia teleport");
+            logger.info("- /citta tutorial - Tutorial interattivo");
+            logger.info("Tab completion abilitato per tutti i comandi!");
+            logger.info("================================");
+
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Errore durante il logging delle informazioni di startup", e);
         }
-
-        getLogger().info("Nuovi comandi disponibili:");
-        getLogger().info("- /citta search <nome> - Cerca una città");
-        getLogger().info("- /citta tp <nome> - Teletrasportati");
-        getLogger().info("- /citta history - Cronologia teleport");
-        getLogger().info("- /citta tutorial - Tutorial interattivo");
-        getLogger().info("Tab completion abilitato per tutti i comandi!");
     }
 
     @Override
     public void onDisable() {
-        // Salva cache e statistiche
-        if (cityManager != null) {
-            cityManager.saveCache();
-        }
-        if (statisticsManager != null) {
-            statisticsManager.saveStatistics();
-        }
-        if (databaseManager != null) {
-            databaseManager.close();
-        }
+        logger.info("Disabilitazione LocateCities in corso...");
 
-        getLogger().info("LocateCities plugin disabilitato!");
+        try {
+            // Cancella tutti i task schedulati
+            getServer().getScheduler().cancelTasks(this);
+
+            // Salva cache e statistiche
+            if (cityManager != null) {
+                try {
+                    cityManager.saveCache();
+                    logger.info("Cache città salvata");
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante il salvataggio cache", e);
+                }
+            }
+
+            if (statisticsManager != null) {
+                try {
+                    statisticsManager.saveStatistics();
+                    logger.info("Statistiche salvate");
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante il salvataggio statistiche", e);
+                }
+            }
+
+            if (databaseManager != null) {
+                try {
+                    databaseManager.close();
+                    logger.info("Database chiuso correttamente");
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Errore durante la chiusura database", e);
+                }
+            }
+
+            // Pulizia riferimenti
+            cityManager = null;
+            configManager = null;
+            economyManager = null;
+            rateLimiter = null;
+            statisticsManager = null;
+            databaseManager = null;
+
+            pluginInitialized = false;
+
+            logger.info("LocateCities plugin disabilitato correttamente!");
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore durante la disabilitazione del plugin", e);
+        }
     }
 
+    // Getter con controlli di sicurezza
     public ConfigManager getConfigManager() {
+        if (configManager == null) {
+            throw new IllegalStateException("ConfigManager non disponibile");
+        }
         return configManager;
     }
 
     public EconomyManager getEconomyManager() {
+        if (economyManager == null) {
+            throw new IllegalStateException("EconomyManager non disponibile");
+        }
         return economyManager;
     }
 
     public RateLimiter getRateLimiter() {
+        if (rateLimiter == null) {
+            throw new IllegalStateException("RateLimiter non disponibile");
+        }
         return rateLimiter;
     }
 
     public StatisticsManager getStatisticsManager() {
+        if (statisticsManager == null) {
+            throw new IllegalStateException("StatisticsManager non disponibile");
+        }
         return statisticsManager;
     }
 
     public CityManager getCityManager() {
+        if (cityManager == null) {
+            throw new IllegalStateException("CityManager non disponibile");
+        }
         return cityManager;
     }
 
     public DatabaseManager getDatabaseManager() {
+        if (databaseManager == null) {
+            throw new IllegalStateException("DatabaseManager non disponibile");
+        }
         return databaseManager;
+    }
+
+    /**
+     * Verifica se il plugin è correttamente inizializzato
+     */
+    public boolean isInitialized() {
+        return pluginInitialized;
+    }
+
+    /**
+     * Ottiene informazioni di debug sul plugin
+     */
+    public String getDebugInfo() {
+        if (!pluginInitialized) {
+            return "Plugin non inizializzato";
+        }
+
+        StringBuilder info = new StringBuilder();
+        info.append("=== DEBUG INFO ===\n");
+        info.append("Plugin inizializzato: ").append(pluginInitialized).append("\n");
+        info.append("Versione: ").append(getDescription().getVersion()).append("\n");
+
+        try {
+            if (configManager != null) {
+                info.append(configManager.getConfigurationDebugInfo());
+            }
+
+            if (databaseManager != null) {
+                info.append("Database: ").append(databaseManager.getDatabaseStats()).append("\n");
+            }
+
+            if (cityManager != null) {
+                info.append("Cache size: ").append(cityManager.getCacheSize()).append("\n");
+            }
+
+            if (statisticsManager != null) {
+                info.append("Ricerche totali: ").append(statisticsManager.getTotalSearches()).append("\n");
+                info.append("Teleport totali: ").append(statisticsManager.getTotalTeleports()).append("\n");
+            }
+
+        } catch (Exception e) {
+            info.append("Errore nel recupero debug info: ").append(e.getMessage()).append("\n");
+        }
+
+        return info.toString();
+    }
+
+    /**
+     * Forza un reload sicuro del plugin
+     */
+    public boolean reloadPlugin() {
+        try {
+            logger.info("Reload plugin richiesto...");
+
+            if (configManager != null) {
+                configManager.reload();
+            }
+
+            if (rateLimiter != null) {
+                rateLimiter.clearCooldowns();
+            }
+
+            logger.info("Reload completato con successo");
+            return true;
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Errore durante il reload del plugin", e);
+            return false;
+        }
     }
 }
