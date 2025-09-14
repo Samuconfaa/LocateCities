@@ -223,6 +223,24 @@ public class CityCommand implements CommandExecutor {
 
         // Controlli per i giocatori
         if (player != null) {
+            // *** CORREZIONE 1: Controllo rate limiting PRIMA di tutto ***
+            if (teleport) {
+                if (!rateLimiter.canTeleport(player)) {
+                    int remaining = rateLimiter.getRemainingTeleportTime(player);
+                    player.sendMessage(plugin.getConfigManager().getMessage("rate_limited_teleport",
+                            "seconds", String.valueOf(remaining)));
+                    return true;
+                }
+            } else {
+                if (!rateLimiter.canSearch(player)) {
+                    int remaining = rateLimiter.getRemainingSearchTime(player);
+                    player.sendMessage(plugin.getConfigManager().getMessage("rate_limited_search",
+                            "seconds", String.valueOf(remaining)));
+                    return true;
+                }
+            }
+
+            // Controllo economy
             if (economyManager.isEconomyEnabled()) {
                 double searchCost = economyManager.getSearchCost();
                 if (!economyManager.hasEnoughMoney(player, searchCost)) {
@@ -234,7 +252,7 @@ public class CityCommand implements CommandExecutor {
 
             // Controlli specifici per teleport
             if (teleport) {
-                // NUOVO: Controllo sistema VIP (già fatto in handleTeleport, ma doppio controllo per sicurezza)
+                // *** CORREZIONE 2: Controllo sistema VIP PRIMA dell'async ***
                 if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
                     if (!canPlayerUseTeleport(player)) {
                         player.sendMessage(plugin.getConfigManager().getMessage("no_permission_vip_teleport",
@@ -242,7 +260,6 @@ public class CityCommand implements CommandExecutor {
                         return true;
                     }
                 } else {
-                    // Controllo permesso standard
                     if (!player.hasPermission("locatecities.teleport")) {
                         player.sendMessage(plugin.getConfigManager().getMessage("no_permission_teleport"));
                         return true;
@@ -255,7 +272,7 @@ public class CityCommand implements CommandExecutor {
                     return true;
                 }
 
-                // NUOVO: Controllo cooldown VIP (solo per utenti VIP)
+                // *** CORREZIONE 3: Controllo cooldown VIP PRIMA dell'async ***
                 if (plugin.getConfigManager().isVipTeleportSystemEnabled() &&
                         canPlayerUseTeleport(player) &&
                         !player.hasPermission("locatecities.free")) {
@@ -281,6 +298,16 @@ public class CityCommand implements CommandExecutor {
 
         // Messaggio di ricerca
         sender.sendMessage(plugin.getConfigManager().getMessage("searching", "city", cityName));
+
+        // *** CORREZIONE 4: Marca rate limit SUBITO per prevenire spam ***
+        if (player != null) {
+            if (teleport) {
+                // Marca il rate limit prima dell'operazione asincrona
+                rateLimiter.canTeleport(player); // Questo registra il timestamp
+            } else {
+                rateLimiter.canSearch(player); // Questo registra il timestamp
+            }
+        }
 
         // Esegui la ricerca
         cityManager.findCity(cityName).whenComplete((cityData, throwable) -> {
@@ -310,13 +337,13 @@ public class CityCommand implements CommandExecutor {
                         "z", String.valueOf(coords.getZ())));
 
                 // Registra la ricerca nelle statistiche
-                statisticsManager.recordSearch(cityName, player, false); // TODO: determinare se da cache
+                statisticsManager.recordSearch(cityName, player, false);
 
                 // Se è richiesto il teleport
                 if (teleport && player != null) {
                     handleTeleportExecution(player, cityData, coords);
                 } else if (!teleport && player != null && cityManager.configManager.isTeleportEnabled()) {
-                    // NUOVO: Suggerisci il teleport solo se il giocatore può usarlo
+                    // Suggerisci il teleport solo se il giocatore può usarlo
                     if (canPlayerUseTeleport(player)) {
                         player.sendMessage("§7💡 Usa '§a/citta tp " + cityName + "§7' per teletrasportarti!");
                     } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {

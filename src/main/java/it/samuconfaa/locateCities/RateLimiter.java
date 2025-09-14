@@ -67,14 +67,15 @@ public class RateLimiter {
 
         String sanitizedName = sanitizePlayerName(playerName);
 
-        // Atomic check-and-update
-        Long lastTime = timeMap.get(sanitizedName);
-        if (lastTime == null || (now - lastTime) >= cooldownMs) {
-            timeMap.put(sanitizedName, now);
-            return true;
+        // *** CORREZIONE: Atomic check-and-update SINCRONIZZATO ***
+        synchronized (timeMap) {
+            Long lastTime = timeMap.get(sanitizedName);
+            if (lastTime == null || (now - lastTime) >= cooldownMs) {
+                timeMap.put(sanitizedName, now);
+                return true;
+            }
+            return false;
         }
-
-        return false;
     }
 
     public int getRemainingSearchTime(Player player) {
