@@ -66,10 +66,50 @@ public class CityCommand implements CommandExecutor {
         sender.sendMessage("§6║§e          LOCATECITIES HELP          §6║");
         sender.sendMessage("§6╠══════════════════════════════════════╣");
         sender.sendMessage("§6║§a /citta search <nome> §7- Cerca città    §6║");
-        sender.sendMessage("§6║§a /citta tp <nome> §7- Teletrasportati     §6║");
+
+        // Mostra il comando teleport solo se il giocatore ha i permessi
+        if (sender instanceof Player) {
+            Player player = (Player) sender;
+            if (canPlayerUseTeleport(player)) {
+                sender.sendMessage("§6║§a /citta tp <nome> §7- Teletrasportati     §6║");
+            } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                sender.sendMessage("§6║§c /citta tp <nome> §7- Solo VIP           §6║");
+            } else {
+                sender.sendMessage("§6║§a /citta tp <nome> §7- Teletrasportati     §6║");
+            }
+        } else {
+            sender.sendMessage("§6║§a /citta tp <nome> §7- Teletrasportati     §6║");
+        }
+
         sender.sendMessage("§6║§a /citta history §7- Cronologia teleport  §6║");
         sender.sendMessage("§6║§a /citta tutorial §7- Guida interattiva   §6║");
+
+        // Mostra info VIP se il sistema è abilitato
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled() && sender instanceof Player) {
+            Player player = (Player) sender;
+            if (!player.hasPermission(plugin.getConfigManager().getVipTeleportPermission())) {
+                sender.sendMessage("§6╠══════════════════════════════════════╣");
+                sender.sendMessage("§6║§c  🔒 TELETRASPORTO RISERVATO VIP 🔒   §6║");
+                sender.sendMessage("§6║§7 Permesso richiesto: §e" + plugin.getConfigManager().getVipTeleportPermission() + " §6║");
+            }
+        }
+
         sender.sendMessage("§6╚══════════════════════════════════════╝");
+    }
+
+    /**
+     * Verifica se un giocatore può usare il teletrasporto
+     */
+    private boolean canPlayerUseTeleport(Player player) {
+        // Se il sistema VIP è disabilitato, tutti possono teletrasportarsi (comportamento originale)
+        if (!plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            return player.hasPermission("locatecities.teleport");
+        }
+
+        // Se il sistema VIP è abilitato, controlla il permesso specifico
+        return player.hasPermission(plugin.getConfigManager().getVipTeleportPermission()) ||
+                player.hasPermission("locatecities.admin") ||
+                player.hasPermission("locatecities.free");
     }
 
     private boolean handleSearch(CommandSender sender, String[] args) {
@@ -94,6 +134,23 @@ public class CityCommand implements CommandExecutor {
             sender.sendMessage(plugin.getConfigManager().getMessage("error_general",
                     "error", "Solo i giocatori possono teletrasportarsi!"));
             return true;
+        }
+
+        Player player = (Player) sender;
+
+        // NUOVO: Controllo sistema VIP
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            if (!canPlayerUseTeleport(player)) {
+                player.sendMessage(plugin.getConfigManager().getMessage("no_permission_vip_teleport",
+                        "permission", plugin.getConfigManager().getVipTeleportPermission()));
+                return true;
+            }
+        } else {
+            // Controllo permesso standard se il sistema VIP è disabilitato
+            if (!player.hasPermission("locatecities.teleport")) {
+                player.sendMessage(plugin.getConfigManager().getMessage("no_permission_teleport"));
+                return true;
+            }
         }
 
         String cityName = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
@@ -136,7 +193,17 @@ public class CityCommand implements CommandExecutor {
         }
 
         player.sendMessage("");
-        player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
+
+        // NUOVO: Messaggio footer adattato al sistema VIP
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled() && canPlayerUseTeleport(player)) {
+            player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
+        } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            player.sendMessage("§7Solo i VIP possono teletrasportarsi! Permesso richiesto: §e" +
+                    plugin.getConfigManager().getVipTeleportPermission());
+        } else {
+            player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
+        }
+
         return true;
     }
 
@@ -157,9 +224,6 @@ public class CityCommand implements CommandExecutor {
 
         // Controlli per i giocatori
         if (player != null) {
-
-
-
             if (economyManager.isEconomyEnabled()) {
                 double searchCost = economyManager.getSearchCost();
                 if (!economyManager.hasEnoughMoney(player, searchCost)) {
@@ -171,10 +235,19 @@ public class CityCommand implements CommandExecutor {
 
             // Controlli specifici per teleport
             if (teleport) {
-                // Controllo permesso teleport
-                if (!player.hasPermission("locatecities.teleport")) {
-                    player.sendMessage(plugin.getConfigManager().getMessage("no_permission_teleport"));
-                    return true;
+                // NUOVO: Controllo sistema VIP (già fatto in handleTeleport, ma doppio controllo per sicurezza)
+                if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                    if (!canPlayerUseTeleport(player)) {
+                        player.sendMessage(plugin.getConfigManager().getMessage("no_permission_vip_teleport",
+                                "permission", plugin.getConfigManager().getVipTeleportPermission()));
+                        return true;
+                    }
+                } else {
+                    // Controllo permesso standard
+                    if (!player.hasPermission("locatecities.teleport")) {
+                        player.sendMessage(plugin.getConfigManager().getMessage("no_permission_teleport"));
+                        return true;
+                    }
                 }
 
                 // Controllo se teleport è abilitato
@@ -183,11 +256,12 @@ public class CityCommand implements CommandExecutor {
                     return true;
                 }
 
+                // NUOVO: Controllo cooldown VIP (solo per utenti VIP)
+                if (plugin.getConfigManager().isVipTeleportSystemEnabled() &&
+                        canPlayerUseTeleport(player) &&
+                        !player.hasPermission("locatecities.free")) {
 
-
-                // Controllo cooldown globale per teleport (qualsiasi città)
-                if (plugin.getConfigManager().isTeleportDayCooldownEnabled() && !player.hasPermission("locatecities.free")) {
-                    int cooldownDays = plugin.getConfigManager().getTeleportCooldownDays();
+                    int cooldownDays = plugin.getConfigManager().getVipTeleportCooldownDays();
                     if (!databaseManager.canTeleport(player.getName(), cooldownDays)) {
                         int remainingDays = databaseManager.getRemainingDays(player.getName(), cooldownDays);
 
@@ -196,7 +270,7 @@ public class CityCommand implements CommandExecutor {
                         String lastDateStr = lastTeleport != null ?
                                 lastTeleport.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "Mai";
 
-                        player.sendMessage(plugin.getConfigManager().getMessage("teleport_global_cooldown",
+                        player.sendMessage(plugin.getConfigManager().getMessage("vip_teleport_cooldown",
                                 "days", String.valueOf(remainingDays),
                                 "last_city", lastCity != null ? lastCity : "Sconosciuta",
                                 "last_date", lastDateStr));
@@ -243,8 +317,13 @@ public class CityCommand implements CommandExecutor {
                 if (teleport && player != null) {
                     handleTeleportExecution(player, cityData, coords);
                 } else if (!teleport && player != null && cityManager.configManager.isTeleportEnabled()) {
-                    // Suggerisci il teleport se disponibile
-                    player.sendMessage("§7💡 Usa '§a/citta tp " + cityName + "§7' per teletrasportarti!");
+                    // NUOVO: Suggerisci il teleport solo se il giocatore può usarlo
+                    if (canPlayerUseTeleport(player)) {
+                        player.sendMessage("§7💡 Usa '§a/citta tp " + cityName + "§7' per teletrasportarti!");
+                    } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                        player.sendMessage("§7🔒 Il teletrasporto è riservato ai VIP (§e" +
+                                plugin.getConfigManager().getVipTeleportPermission() + "§7)");
+                    }
                 }
             });
         });

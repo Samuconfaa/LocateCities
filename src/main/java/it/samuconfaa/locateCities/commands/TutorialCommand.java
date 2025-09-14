@@ -34,6 +34,17 @@ public class TutorialCommand implements CommandExecutor {
         player.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
         player.sendMessage("");
 
+        // Controlla se il giocatore ha accesso VIP
+        boolean hasVipAccess = false;
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            hasVipAccess = player.hasPermission(plugin.getConfigManager().getVipTeleportPermission()) ||
+                    player.hasPermission("locatecities.admin") ||
+                    player.hasPermission("locatecities.free");
+        } else {
+            hasVipAccess = player.hasPermission("locatecities.teleport");
+        }
+
+        boolean finalHasVipAccess = hasVipAccess;
         new BukkitRunnable() {
             int step = 0;
 
@@ -52,14 +63,34 @@ public class TutorialCommand implements CommandExecutor {
                         player.sendMessage(ChatColor.YELLOW + "   /citta search <nome>" + ChatColor.GRAY + " - Trova le coordinate di una città");
                         player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta search roma");
                         player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta search new york");
+                        player.sendMessage(ChatColor.GREEN + "   ✅ Questo comando è disponibile per tutti!");
                         break;
 
                     case 2:
                         player.sendMessage("");
                         player.sendMessage(ChatColor.BLUE + "✈️ " + ChatColor.WHITE + "TELETRASPORTO:");
-                        player.sendMessage(ChatColor.YELLOW + "   /citta tp <nome>" + ChatColor.GRAY + " - Teletrasportati alla città");
-                        player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp roma");
-                        player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp londra");
+
+                        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                            if (finalHasVipAccess) {
+                                player.sendMessage(ChatColor.YELLOW + "   /citta tp <nome>" + ChatColor.GRAY + " - Teletrasportati alla città");
+                                player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp roma");
+                                player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp londra");
+                                player.sendMessage(ChatColor.GREEN + "   ✅ Hai accesso VIP al teletrasporto!");
+                                player.sendMessage(ChatColor.GOLD + "   🌟 Cooldown: ogni " +
+                                        plugin.getConfigManager().getVipTeleportCooldownDays() + " giorni");
+                            } else {
+                                player.sendMessage(ChatColor.RED + "   🔒 TELETRASPORTO RISERVATO VIP");
+                                player.sendMessage(ChatColor.GRAY + "   Il teletrasporto è riservato agli utenti VIP");
+                                player.sendMessage(ChatColor.GRAY + "   Permesso richiesto: " + ChatColor.YELLOW +
+                                        plugin.getConfigManager().getVipTeleportPermission());
+                                player.sendMessage(ChatColor.GRAY + "   Puoi comunque cercare le coordinate delle città!");
+                            }
+                        } else {
+                            player.sendMessage(ChatColor.YELLOW + "   /citta tp <nome>" + ChatColor.GRAY + " - Teletrasportati alla città");
+                            player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp roma");
+                            player.sendMessage(ChatColor.GRAY + "   Esempio: " + ChatColor.WHITE + "/citta tp londra");
+                        }
+
                         player.sendMessage(ChatColor.GRAY + "   💡 Puoi anche usare " + ChatColor.WHITE + "/citta teleport <nome>");
                         break;
 
@@ -67,7 +98,14 @@ public class TutorialCommand implements CommandExecutor {
                         player.sendMessage("");
                         player.sendMessage(ChatColor.LIGHT_PURPLE + "📜 " + ChatColor.WHITE + "CRONOLOGIA:");
                         player.sendMessage(ChatColor.YELLOW + "   /citta history" + ChatColor.GRAY + " - Vedi i tuoi teleport passati");
-                        player.sendMessage(ChatColor.GRAY + "   Mostra tutte le città visitate e quando");
+
+                        if (finalHasVipAccess) {
+                            player.sendMessage(ChatColor.GRAY + "   Mostra tutte le città visitate e quando");
+                        } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                            player.sendMessage(ChatColor.GRAY + "   (Sarà vuota se non hai mai fatto teleport VIP)");
+                        } else {
+                            player.sendMessage(ChatColor.GRAY + "   Mostra tutte le città visitate e quando");
+                        }
                         break;
 
                     case 4:
@@ -79,14 +117,33 @@ public class TutorialCommand implements CommandExecutor {
 
                     case 5:
                         player.sendMessage("");
-                        player.sendMessage(ChatColor.RED + "⏰ " + ChatColor.WHITE + "SISTEMA COOLDOWN:");
-                        if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
-                            player.sendMessage(ChatColor.GRAY + "   • Puoi teletrasportarti ogni " +
-                                    ChatColor.WHITE + plugin.getConfigManager().getTeleportCooldownDays() + " giorni");
-                            player.sendMessage(ChatColor.GRAY + "   • Il cooldown è globale (vale per tutte le città)");
+
+                        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                            player.sendMessage(ChatColor.RED + "🔒 " + ChatColor.WHITE + "SISTEMA VIP TELEPORT:");
+
+                            if (finalHasVipAccess) {
+                                player.sendMessage(ChatColor.GREEN + "   ✅ Hai accesso VIP al teletrasporto!");
+                                player.sendMessage(ChatColor.GRAY + "   • Puoi teletrasportarti ogni " +
+                                        ChatColor.WHITE + plugin.getConfigManager().getVipTeleportCooldownDays() + " giorni");
+                                player.sendMessage(ChatColor.GRAY + "   • Il cooldown è globale (vale per tutte le città)");
+                                player.sendMessage(ChatColor.GRAY + "   • Il tuo permesso: " + ChatColor.GREEN +
+                                        plugin.getConfigManager().getVipTeleportPermission());
+                            } else {
+                                player.sendMessage(ChatColor.RED + "   ❌ Non hai accesso VIP al teletrasporto");
+                                player.sendMessage(ChatColor.GRAY + "   • Solo gli utenti VIP possono teletrasportarsi");
+                                player.sendMessage(ChatColor.GRAY + "   • Permesso necessario: " + ChatColor.YELLOW +
+                                        plugin.getConfigManager().getVipTeleportPermission());
+                                player.sendMessage(ChatColor.GRAY + "   • Puoi comunque cercare tutte le città!");
+
+                                if (plugin.getConfigManager().allowOthersSearchOnly()) {
+                                    player.sendMessage(ChatColor.GREEN + "   • La ricerca è completamente gratuita per te!");
+                                }
+                            }
                         } else {
-                            player.sendMessage(ChatColor.GRAY + "   • Sistema cooldown giorni disabilitato");
+                            player.sendMessage(ChatColor.RED + "⏰ " + ChatColor.WHITE + "SISTEMA COOLDOWN:");
+                            player.sendMessage(ChatColor.GRAY + "   • Sistema VIP disabilitato - tutti possono teletrasportarsi");
                         }
+
                         if (plugin.getConfigManager().isRateLimitEnabled()) {
                             player.sendMessage(ChatColor.GRAY + "   • Ricerca: " + ChatColor.WHITE +
                                     plugin.getConfigManager().getSearchCooldown() + " secondi tra i comandi");
@@ -101,10 +158,20 @@ public class TutorialCommand implements CommandExecutor {
                             player.sendMessage(ChatColor.GOLD + "💰 " + ChatColor.WHITE + "COSTI:");
                             player.sendMessage(ChatColor.GRAY + "   • Ricerca: " + ChatColor.WHITE + "$" +
                                     plugin.getEconomyManager().getSearchCost());
-                            player.sendMessage(ChatColor.GRAY + "   • Teleport: " + ChatColor.WHITE + "$" +
-                                    plugin.getEconomyManager().getTeleportCost());
-                            player.sendMessage(ChatColor.GRAY + "   • Gratuito entro " + ChatColor.WHITE +
-                                    plugin.getEconomyManager().getFreeDistance() + " blocchi");
+
+                            if (finalHasVipAccess) {
+                                player.sendMessage(ChatColor.GRAY + "   • Teleport: " + ChatColor.WHITE + "$" +
+                                        plugin.getEconomyManager().getTeleportCost());
+                                player.sendMessage(ChatColor.GRAY + "   • Gratuito entro " + ChatColor.WHITE +
+                                        plugin.getEconomyManager().getFreeDistance() + " blocchi");
+                            } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                                player.sendMessage(ChatColor.RED + "   • Teleport: Riservato VIP");
+                            } else {
+                                player.sendMessage(ChatColor.GRAY + "   • Teleport: " + ChatColor.WHITE + "$" +
+                                        plugin.getEconomyManager().getTeleportCost());
+                                player.sendMessage(ChatColor.GRAY + "   • Gratuito entro " + ChatColor.WHITE +
+                                        plugin.getEconomyManager().getFreeDistance() + " blocchi");
+                            }
                         } else {
                             player.sendMessage(ChatColor.GOLD + "💰 " + ChatColor.WHITE + "ECONOMIA:");
                             player.sendMessage(ChatColor.GRAY + "   • Sistema economico disabilitato");
@@ -123,11 +190,29 @@ public class TutorialCommand implements CommandExecutor {
                         player.sendMessage("");
                         player.sendMessage(ChatColor.DARK_GREEN + "🎯 " + ChatColor.WHITE + "PROVA SUBITO:");
                         player.sendMessage(ChatColor.GRAY + "   1. Scrivi " + ChatColor.YELLOW + "/citta search roma");
-                        player.sendMessage(ChatColor.GRAY + "   2. Poi prova " + ChatColor.YELLOW + "/citta tp roma");
-                        player.sendMessage(ChatColor.GRAY + "   3. Guarda la cronologia con " + ChatColor.YELLOW + "/citta history");
+
+                        if (finalHasVipAccess) {
+                            player.sendMessage(ChatColor.GRAY + "   2. Poi prova " + ChatColor.YELLOW + "/citta tp roma");
+                            player.sendMessage(ChatColor.GRAY + "   3. Guarda la cronologia con " + ChatColor.YELLOW + "/citta history");
+                        } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+                            player.sendMessage(ChatColor.GRAY + "   2. " + ChatColor.RED + "Teletrasporto non disponibile (solo VIP)");
+                            player.sendMessage(ChatColor.GRAY + "   3. Prova altre città con " + ChatColor.YELLOW + "/citta search <nome>");
+                        } else {
+                            player.sendMessage(ChatColor.GRAY + "   2. Poi prova " + ChatColor.YELLOW + "/citta tp roma");
+                            player.sendMessage(ChatColor.GRAY + "   3. Guarda la cronologia con " + ChatColor.YELLOW + "/citta history");
+                        }
+
                         player.sendMessage("");
                         player.sendMessage(ChatColor.GREEN + "✅ Tutorial completato! Buona esplorazione! 🗺️");
                         player.sendMessage(ChatColor.GRAY + "Ricorda: usa " + ChatColor.YELLOW + "/citta" + ChatColor.GRAY + " per vedere i comandi disponibili");
+
+                        // Messaggio finale personalizzato
+                        if (plugin.getConfigManager().isVipTeleportSystemEnabled() && !finalHasVipAccess) {
+                            player.sendMessage("");
+                            player.sendMessage(ChatColor.GOLD + "🌟 " + ChatColor.YELLOW + "Per ottenere l'accesso VIP al teletrasporto,");
+                            player.sendMessage(ChatColor.YELLOW + "contatta un amministratore del server!");
+                        }
+
                         cancel();
                         return;
                 }

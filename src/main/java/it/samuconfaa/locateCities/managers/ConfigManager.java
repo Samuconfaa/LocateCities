@@ -53,11 +53,13 @@ public class ConfigManager {
         config.addDefault("rate_limit.search_cooldown", 3);
         config.addDefault("rate_limit.teleport_cooldown", 10);
 
-        // Teleport day cooldown defaults
-        config.addDefault("teleport_day_cooldown.enabled", true);
-        config.addDefault("teleport_day_cooldown.days", 7);
+        // NUOVO: Sistema teleport con permesso specifico
+        config.addDefault("teleport_permission_system.enabled", true);
+        config.addDefault("teleport_permission_system.required_permission", "locatecities.vip.teleport");
+        config.addDefault("teleport_permission_system.cooldown_days", 3);
+        config.addDefault("teleport_permission_system.allow_others_search_only", true);
 
-        // Message defaults - AGGIORNATI per i nuovi comandi
+        // Message defaults - AGGIORNATI per il nuovo sistema
         config.addDefault("messages.searching", "&e🔍 Ricerca di &f{city} &ein corso...");
         config.addDefault("messages.found", "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}");
         config.addDefault("messages.teleported", "&a✈ Teletrasportato a &f{city}&a!");
@@ -65,6 +67,7 @@ public class ConfigManager {
         config.addDefault("messages.teleport_disabled", "&c❌ Il teletrasporto è disabilitato!");
         config.addDefault("messages.no_permission", "&c❌ Non hai il permesso per usare questo comando!");
         config.addDefault("messages.no_permission_teleport", "&c❌ Non hai il permesso per teletrasportarti!");
+        config.addDefault("messages.no_permission_vip_teleport", "&c❌ Solo i VIP possono teletrasportarsi! Hai bisogno del permesso: &f{permission}");
         config.addDefault("messages.rate_limited_search", "&c❌ Devi aspettare &f{seconds} &csecondi prima di cercare un'altra città!");
         config.addDefault("messages.rate_limited_teleport", "&c❌ Devi aspettare &f{seconds} &csecondi prima di teletrasportarti di nuovo!");
         config.addDefault("messages.insufficient_funds", "&c❌ Non hai abbastanza soldi! Serve: &f${cost}");
@@ -78,13 +81,12 @@ public class ConfigManager {
         config.addDefault("messages.invalid_coordinates", "&c❌ Coordinate non valide!");
         config.addDefault("messages.invalid_scale", "&c❌ Scala non valida!");
         config.addDefault("messages.error_general", "&c❌ Errore: &f{error}");
-        config.addDefault("messages.teleport_day_cooldown", "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})");
         config.addDefault("messages.teleport_history_header", "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝");
         config.addDefault("messages.teleport_history_entry", "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)");
         config.addDefault("messages.teleport_history_empty", "&7Nessun teleport effettuato ancora.");
         config.addDefault("messages.teleport_history_footer", "&7Usa &a/citta tp <nome> &7per teletrasportarti!");
         config.addDefault("messages.cooldown_bypassed", "&a✅ Il cooldown per i teleport è stato resettato da un admin!");
-        config.addDefault("messages.teleport_global_cooldown", "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)");
+        config.addDefault("messages.vip_teleport_cooldown", "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)");
 
         config.options().copyDefaults(true);
         plugin.saveConfig();
@@ -174,13 +176,33 @@ public class ConfigManager {
         return validateAndClampCooldown(cooldown, "teleport_cooldown");
     }
 
-    // Teleport day cooldown methods con validazione
-    public boolean isTeleportDayCooldownEnabled() {
-        return config.getBoolean("teleport_day_cooldown.enabled");
+    // NUOVI METODI: Sistema teleport con permesso specifico
+    public boolean isVipTeleportSystemEnabled() {
+        return config.getBoolean("teleport_permission_system.enabled");
     }
 
+    public String getVipTeleportPermission() {
+        return config.getString("teleport_permission_system.required_permission", "locatecities.vip.teleport");
+    }
+
+    public int getVipTeleportCooldownDays() {
+        int days = config.getInt("teleport_permission_system.cooldown_days");
+        return validateAndClampDays(days);
+    }
+
+    public boolean allowOthersSearchOnly() {
+        return config.getBoolean("teleport_permission_system.allow_others_search_only");
+    }
+
+    // DEPRECATI: Metodi del vecchio sistema cooldown giorni (mantenuti per compatibilità)
+    @Deprecated
+    public boolean isTeleportDayCooldownEnabled() {
+        return config.getBoolean("teleport_day_cooldown.enabled", false);
+    }
+
+    @Deprecated
     public int getTeleportCooldownDays() {
-        int days = config.getInt("teleport_day_cooldown.days");
+        int days = config.getInt("teleport_day_cooldown.days", 7);
         return validateAndClampDays(days);
     }
 
@@ -304,8 +326,8 @@ public class ConfigManager {
 
     private int validateAndClampDays(int days) {
         if (days < 1 || days > 365) { // 1 giorno - 1 anno
-            logger.warning("Giorni cooldown non validi nel config: " + days + ", usando 7");
-            return 7;
+            logger.warning("Giorni cooldown non validi nel config: " + days + ", usando 3");
+            return 3;
         }
         return days;
     }
@@ -405,6 +427,21 @@ public class ConfigManager {
             hasErrors = true;
         }
 
+        // Valida nuovo sistema VIP
+        if (isVipTeleportSystemEnabled()) {
+            String vipPermission = getVipTeleportPermission();
+            if (vipPermission == null || vipPermission.trim().isEmpty()) {
+                logger.warning("Permesso VIP teleport non valido nella configurazione");
+                hasErrors = true;
+            }
+
+            int cooldownDays = getVipTeleportCooldownDays();
+            if (cooldownDays < 1 || cooldownDays > 365) {
+                logger.warning("Giorni cooldown VIP non validi nella configurazione");
+                hasErrors = true;
+            }
+        }
+
         if (hasErrors) {
             logger.warning("Configurazione contiene errori - alcuni valori verranno sostituiti con i default");
         } else {
@@ -424,7 +461,12 @@ public class ConfigManager {
         info.append("Cache durata: ").append(getCacheDurationHours()).append("h\n");
         info.append("Economy abilitata: ").append(isEconomyEnabled()).append("\n");
         info.append("Rate limit abilitato: ").append(isRateLimitEnabled()).append("\n");
-        info.append("Cooldown giorni abilitato: ").append(isTeleportDayCooldownEnabled()).append("\n");
+        info.append("Sistema VIP teleport abilitato: ").append(isVipTeleportSystemEnabled()).append("\n");
+        if (isVipTeleportSystemEnabled()) {
+            info.append("Permesso VIP richiesto: ").append(getVipTeleportPermission()).append("\n");
+            info.append("Cooldown VIP: ").append(getVipTeleportCooldownDays()).append(" giorni\n");
+            info.append("Altri possono solo cercare: ").append(allowOthersSearchOnly()).append("\n");
+        }
         return info.toString();
     }
 }

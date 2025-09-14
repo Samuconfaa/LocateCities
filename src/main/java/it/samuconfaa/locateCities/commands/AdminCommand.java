@@ -86,6 +86,11 @@ public class AdminCommand implements CommandExecutor {
                 handleBypassCooldown(sender, args);
                 break;
 
+            // NUOVO: Comando per gestire permessi VIP
+            case "vip":
+                handleVipManagement(sender, args);
+                break;
+
             default:
                 sendHelp(sender);
                 break;
@@ -104,6 +109,12 @@ public class AdminCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin stats" + ChatColor.GRAY + " - Statistiche       " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin dbstats" + ChatColor.GRAY + " - Stats database   " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.GREEN + " /cittaadmin bypass <player> <city>" + ChatColor.GRAY + " - Bypass cooldown" + ChatColor.GOLD + "║");
+
+        // NUOVO: Comando VIP se il sistema è abilitato
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin vip <check|info> <player>" + ChatColor.GRAY + " - Gestione VIP" + ChatColor.GOLD + "║");
+        }
+
         sender.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════╣");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setorigin <lat> <lon>     " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setscale <scala>          " + ChatColor.GOLD + "║");
@@ -147,10 +158,22 @@ public class AdminCommand implements CommandExecutor {
                 (plugin.getConfigManager().isEconomyEnabled() ? ChatColor.GREEN + "✅ Abilitata" : ChatColor.RED + "❌ Disabilitata"));
         sender.sendMessage(ChatColor.YELLOW + "   Rate Limiting: " + ChatColor.WHITE +
                 (plugin.getConfigManager().isRateLimitEnabled() ? ChatColor.GREEN + "✅ Abilitato" : ChatColor.RED + "❌ Disabilitato"));
-        sender.sendMessage(ChatColor.YELLOW + "   Cooldown Giorni: " + ChatColor.WHITE +
-                (plugin.getConfigManager().isTeleportDayCooldownEnabled() ?
-                        ChatColor.GREEN + "✅ " + plugin.getConfigManager().getTeleportCooldownDays() + " giorni" :
-                        ChatColor.RED + "❌ Disabilitato"));
+
+        // NUOVO: Info sistema VIP
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            sender.sendMessage(ChatColor.YELLOW + "   Sistema VIP: " + ChatColor.WHITE + ChatColor.GREEN + "✅ Abilitato");
+            sender.sendMessage(ChatColor.YELLOW + "   Permesso VIP: " + ChatColor.WHITE + plugin.getConfigManager().getVipTeleportPermission());
+            sender.sendMessage(ChatColor.YELLOW + "   Cooldown VIP: " + ChatColor.WHITE + plugin.getConfigManager().getVipTeleportCooldownDays() + " giorni");
+            sender.sendMessage(ChatColor.YELLOW + "   Altri solo ricerca: " + ChatColor.WHITE +
+                    (plugin.getConfigManager().allowOthersSearchOnly() ? ChatColor.GREEN + "✅ Sì" : ChatColor.RED + "❌ No"));
+        } else {
+            sender.sendMessage(ChatColor.YELLOW + "   Sistema VIP: " + ChatColor.WHITE + ChatColor.RED + "❌ Disabilitato");
+            sender.sendMessage(ChatColor.YELLOW + "   Cooldown Giorni: " + ChatColor.WHITE +
+                    (plugin.getConfigManager().isTeleportDayCooldownEnabled() ?
+                            ChatColor.GREEN + "✅ " + plugin.getConfigManager().getTeleportCooldownDays() + " giorni" :
+                            ChatColor.RED + "❌ Disabilitato"));
+        }
+
         sender.sendMessage("");
 
         // Statistiche rapide
@@ -292,7 +315,6 @@ public class AdminCommand implements CommandExecutor {
                             + ChatColor.YELLOW + city
                             + ChatColor.GRAY + " (" + searchCount + " ricerche)"
             );
-
         }
     }
 
@@ -354,7 +376,13 @@ public class AdminCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.GOLD + "📊 " + ChatColor.WHITE + "STATISTICHE DATABASE:");
         sender.sendMessage(ChatColor.YELLOW + "   Database: " + ChatColor.WHITE + "SQLite (teleports.db)");
 
-        if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
+        if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            sender.sendMessage(ChatColor.YELLOW + "   Sistema VIP: " + ChatColor.GREEN + "✅ Attivo");
+            sender.sendMessage(ChatColor.YELLOW + "   Cooldown VIP: " + ChatColor.WHITE +
+                    plugin.getConfigManager().getVipTeleportCooldownDays() + " giorni");
+            sender.sendMessage(ChatColor.YELLOW + "   Permesso VIP: " + ChatColor.WHITE +
+                    plugin.getConfigManager().getVipTeleportPermission());
+        } else if (plugin.getConfigManager().isTeleportDayCooldownEnabled()) {
             sender.sendMessage(ChatColor.YELLOW + "   Sistema cooldown: " + ChatColor.GREEN + "✅ Attivo (" +
                     plugin.getConfigManager().getTeleportCooldownDays() + " giorni)");
         } else {
@@ -362,7 +390,7 @@ public class AdminCommand implements CommandExecutor {
         }
 
         sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin cleandb [giorni]' per pulire vecchi record.");
-        sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin bypass <player>' per bypassare il cooldown globale.");
+        sender.sendMessage(ChatColor.GRAY + "   Usa '/cittaadmin bypass <player> <city>' per bypassare il cooldown.");
     }
 
     private void handleBypassCooldown(CommandSender sender, String[] args) {
@@ -394,5 +422,125 @@ public class AdminCommand implements CommandExecutor {
         }
 
         plugin.getLogger().info(sender.getName() + " ha bypassato il cooldown di " + playerName + " per " + cityName);
+    }
+
+    // NUOVO: Gestione VIP
+    private void handleVipManagement(CommandSender sender, String[] args) {
+        if (!plugin.getConfigManager().isVipTeleportSystemEnabled()) {
+            sender.sendMessage(ChatColor.RED + "❌ Il sistema VIP non è abilitato!");
+            sender.sendMessage(ChatColor.GRAY + "Abilita 'teleport_permission_system.enabled: true' nel config.yml");
+            return;
+        }
+
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "Uso: /cittaadmin vip <check|info> [giocatore]");
+            sender.sendMessage(ChatColor.GRAY + "- check <giocatore> - Verifica status VIP");
+            sender.sendMessage(ChatColor.GRAY + "- info - Mostra info sistema VIP");
+            return;
+        }
+
+        String subCommand = args[1].toLowerCase();
+
+        switch (subCommand) {
+            case "check":
+                handleVipCheck(sender, args);
+                break;
+            case "info":
+                handleVipInfo(sender);
+                break;
+            default:
+                sender.sendMessage(ChatColor.RED + "Sottcomando non valido: " + subCommand);
+                break;
+        }
+    }
+
+    private void handleVipCheck(CommandSender sender, String[] args) {
+        if (args.length != 3) {
+            sender.sendMessage(ChatColor.RED + "Uso: /cittaadmin vip check <nome_giocatore>");
+            return;
+        }
+
+        String playerName = args[2];
+        Player target = Bukkit.getPlayer(playerName);
+
+        if (target == null) {
+            sender.sendMessage(ChatColor.RED + "❌ Giocatore non trovato online: " + playerName);
+            return;
+        }
+
+        String vipPermission = plugin.getConfigManager().getVipTeleportPermission();
+        boolean hasVipAccess = target.hasPermission(vipPermission) ||
+                target.hasPermission("locatecities.admin") ||
+                target.hasPermission("locatecities.free");
+
+        sender.sendMessage(ChatColor.GOLD + "🔍 " + ChatColor.WHITE + "Status VIP di " + ChatColor.YELLOW + playerName + ":");
+        sender.sendMessage("");
+
+        if (hasVipAccess) {
+            sender.sendMessage(ChatColor.GREEN + "✅ " + ChatColor.WHITE + "Ha accesso VIP al teletrasporto");
+            sender.sendMessage(ChatColor.GRAY + "   Permesso: " + ChatColor.GREEN + vipPermission);
+
+            // Mostra info cooldown
+            int cooldownDays = plugin.getConfigManager().getVipTeleportCooldownDays();
+            LocalDate lastTeleport = plugin.getDatabaseManager().getLastTeleportDate(playerName);
+
+            if (lastTeleport != null) {
+                long daysAgo = java.time.temporal.ChronoUnit.DAYS.between(lastTeleport, LocalDate.now());
+                boolean canTeleport = plugin.getDatabaseManager().canTeleport(playerName, cooldownDays);
+
+                sender.sendMessage(ChatColor.GRAY + "   Ultimo teleport: " + ChatColor.WHITE +
+                        lastTeleport.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) +
+                        " (" + daysAgo + " giorni fa)");
+
+                if (canTeleport) {
+                    sender.sendMessage(ChatColor.GREEN + "   ✅ Può teletrasportarsi ora");
+                } else {
+                    int remaining = plugin.getDatabaseManager().getRemainingDays(playerName, cooldownDays);
+                    sender.sendMessage(ChatColor.RED + "   ❌ Cooldown attivo - " + remaining + " giorni rimanenti");
+                }
+            } else {
+                sender.sendMessage(ChatColor.GRAY + "   Nessun teleport precedente");
+            }
+        } else {
+            sender.sendMessage(ChatColor.RED + "❌ " + ChatColor.WHITE + "NON ha accesso VIP al teletrasporto");
+            sender.sendMessage(ChatColor.GRAY + "   Permesso richiesto: " + ChatColor.YELLOW + vipPermission);
+        }
+    }
+
+    private void handleVipInfo(CommandSender sender) {
+        sender.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.YELLOW + "        🌟 INFO SISTEMA VIP 🌟         " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
+        sender.sendMessage("");
+
+        sender.sendMessage(ChatColor.AQUA + "📋 " + ChatColor.WHITE + "CONFIGURAZIONE:");
+        sender.sendMessage(ChatColor.YELLOW + "   Sistema abilitato: " + ChatColor.GREEN + "✅ Sì");
+        sender.sendMessage(ChatColor.YELLOW + "   Permesso richiesto: " + ChatColor.WHITE +
+                plugin.getConfigManager().getVipTeleportPermission());
+        sender.sendMessage(ChatColor.YELLOW + "   Cooldown: " + ChatColor.WHITE +
+                plugin.getConfigManager().getVipTeleportCooldownDays() + " giorni");
+        sender.sendMessage(ChatColor.YELLOW + "   Altri possono cercare: " + ChatColor.WHITE +
+                (plugin.getConfigManager().allowOthersSearchOnly() ? ChatColor.GREEN + "✅ Sì" : ChatColor.RED + "❌ No"));
+        sender.sendMessage("");
+
+        sender.sendMessage(ChatColor.AQUA + "👥 " + ChatColor.WHITE + "UTENTI VIP ONLINE:");
+        boolean foundVips = false;
+        String vipPermission = plugin.getConfigManager().getVipTeleportPermission();
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.hasPermission(vipPermission) || player.hasPermission("locatecities.admin") || player.hasPermission("locatecities.free")) {
+                if (!foundVips) {
+                    foundVips = true;
+                }
+                sender.sendMessage(ChatColor.WHITE + "   🌟 " + ChatColor.GREEN + player.getName());
+            }
+        }
+
+        if (!foundVips) {
+            sender.sendMessage(ChatColor.GRAY + "   Nessun utente VIP online al momento");
+        }
+
+        sender.sendMessage("");
+        sender.sendMessage(ChatColor.GRAY + "Usa '/cittaadmin vip check <giocatore>' per verificare un utente specifico");
     }
 }

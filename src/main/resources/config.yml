@@ -1,5 +1,5 @@
-# Configurazione LocateCities Plugin - VERSIONE OTTIMIZZATA
-# ==========================================================
+# Configurazione LocateCities Plugin
+# =============================================================
 
 # Punto di origine: coordinate geografiche reali che corrispondono al punto (0,0) in Minecraft
 lat_origin: 41.9028    # Latitudine di Roma (esempio)
@@ -36,13 +36,32 @@ rate_limit:
   search_cooldown: 2          # Ridotto da 3 a 2 secondi
   teleport_cooldown: 5        # Ridotto da 10 a 5 secondi
 
-# Sistema Cooldown Giorni
-teleport_day_cooldown:
+# SISTEMA VIP TELEPORT
+# ===========================
+# Sistema che restringe il teletrasporto solo agli utenti con permesso specifico
+teleport_permission_system:
+  # Abilita il sistema VIP (se disabilitato, tutti possono teletrasportarsi)
   enabled: true
+
+  # Permesso richiesto per poter teletrasportarsi
+  # Solo gli utenti con questo permesso (o admin/free) possono usare /citta tp
+  required_permission: "locatecities.vip.teleport"
+
+  # Cooldown in giorni per gli utenti VIP (ogni quanto possono teletrasportarsi)
+  cooldown_days: 3
+
+  # Se true, gli utenti senza permesso VIP possono comunque cercare città
+  # Se false, anche la ricerca è limitata (sconsigliato)
+  allow_others_search_only: true
+
+# SISTEMA COOLDOWN SENZA PERMESSO VIP
+# Se il sistema VIP è abilitato sopra, queste impostazioni vengono ignorate
+teleport_day_cooldown:
+  enabled: false              # Disabilitato in favore del sistema VIP
   days: 7
 
-# NUOVE IMPOSTAZIONI PERFORMANCE
-# ==============================
+# IMPOSTAZIONI PERFORMANCE
+# ====================================
 performance:
   # Cache settings ottimizzate
   max_cache_size: 500           # Limite cache città
@@ -67,7 +86,8 @@ performance:
   log_cache_operations: false   # Disabilita log cache dettagliati
   log_database_operations: false # Disabilita log database dettagliati
 
-# Messaggi (invariati ma ottimizzati)
+# Messaggi - AGGIORNATI per il sistema VIP
+# ========================================
 messages:
   searching: "&e🔍 Ricerca di &f{city} &ein corso..."
   found: "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}"
@@ -76,6 +96,7 @@ messages:
   teleport_disabled: "&c❌ Il teletrasporto è disabilitato!"
   no_permission: "&c❌ Non hai il permesso per usare questo comando!"
   no_permission_teleport: "&c❌ Non hai il permesso per teletrasportarti!"
+  no_permission_vip_teleport: "&c❌ Solo i VIP possono teletrasportarsi! &7Permesso richiesto: &e{permission}"
   rate_limited_search: "&c❌ Devi aspettare &f{seconds} &csecondi prima di cercare un'altra città!"
   rate_limited_teleport: "&c❌ Devi aspettare &f{seconds} &csecondi prima di teletrasportarti di nuovo!"
   insufficient_funds: "&c❌ Non hai abbastanza soldi! Serve: &f${cost}"
@@ -89,10 +110,30 @@ messages:
   invalid_coordinates: "&c❌ Coordinate non valide!"
   invalid_scale: "&c❌ Scala non valida!"
   error_general: "&c❌ Errore: &f{error}"
-  teleport_global_cooldown: "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)"
+  vip_teleport_cooldown: "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)"
   teleport_history_header: "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝"
   teleport_history_entry: "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)"
   teleport_history_empty: "&7Nessun teleport effettuato ancora."
   teleport_history_footer: "&7Usa &a/citta tp <nome> &7per teletrasportarti!"
   cooldown_bypassed: "&a✅ Il cooldown per i teleport è stato resettato da un admin!"
-  teleport_day_cooldown: "&c❌ Puoi teletrasportarti a &f{city} &cfra &f{days} &cgiorni! (Ultimo: &f{last_date})"
+
+# PERMESSI CONSIGLIATI
+# ====================
+#
+# Per il sistema VIP, configura questi permessi nel tuo plugin di permessi:
+#
+# Utenti normali:
+# - locatecities.use (permette /citta search)
+#
+# Utenti VIP:
+# - locatecities.use
+# - locatecities.vip.teleport (permette /citta tp con cooldown)
+#
+# Staff/Admin:
+# - locatecities.use
+# - locatecities.admin (permette comandi admin)
+# - locatecities.free (bypass completo di costi e cooldown)
+# - locatecities.noratelimit (bypass rate limiting)
+#
+# NOTA: Gli admin e utenti con 'locatecities.free' possono sempre teletrasportarsi
+#       indipendentemente dal sistema VIP
