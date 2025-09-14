@@ -33,8 +33,8 @@ economy:
 # Rate Limiting ottimizzato per performance
 rate_limit:
   enabled: true
-  search_cooldown: 2          # Ridotto da 3 a 2 secondi
-  teleport_cooldown: 5        # Ridotto da 10 a 5 secondi
+  search_cooldown: 2
+  teleport_cooldown: 5
 
 # SISTEMA VIP TELEPORT
 # ===========================
@@ -51,7 +51,7 @@ teleport_permission_system:
   cooldown_days: 3
 
   # Se true, gli utenti senza permesso VIP possono comunque cercare città
-  # Se false, anche la ricerca è limitata (sconsigliato)
+  # Se false, anche la ricerca è limitata
   allow_others_search_only: true
 
 # SISTEMA COOLDOWN SENZA PERMESSO VIP
@@ -86,7 +86,7 @@ performance:
   log_cache_operations: false   # Disabilita log cache dettagliati
   log_database_operations: false # Disabilita log database dettagliati
 
-# Messaggi - AGGIORNATI per il sistema VIP
+# Messaggi
 # ========================================
 messages:
   searching: "&e🔍 Ricerca di &f{city} &ein corso..."
@@ -96,7 +96,7 @@ messages:
   teleport_disabled: "&c❌ Il teletrasporto è disabilitato!"
   no_permission: "&c❌ Non hai il permesso per usare questo comando!"
   no_permission_teleport: "&c❌ Non hai il permesso per teletrasportarti!"
-  no_permission_vip_teleport: "&c❌ Solo i VIP possono teletrasportarsi! &7Permesso richiesto: &e{permission}"
+  no_permission_vip_teleport: "&c❌ Solo i possessori del PASS MENSILE+ possono teletrasportarsi"
   rate_limited_search: "&c❌ Devi aspettare &f{seconds} &csecondi prima di cercare un'altra città!"
   rate_limited_teleport: "&c❌ Devi aspettare &f{seconds} &csecondi prima di teletrasportarti di nuovo!"
   insufficient_funds: "&c❌ Non hai abbastanza soldi! Serve: &f${cost}"
@@ -109,6 +109,7 @@ messages:
   scale_set: "&a✅ Scala impostata a: &f{scale}"
   invalid_coordinates: "&c❌ Coordinate non valide!"
   invalid_scale: "&c❌ Scala non valida!"
+  teleport_only_vip: "§7🔒 Il teletrasporto è riservato ai possessori del PASS MENSILE"
   error_general: "&c❌ Errore: &f{error}"
   vip_teleport_cooldown: "&c❌ Puoi teletrasportarti fra &f{days} &cgiorni! Ultimo: &b{last_city} &c(&f{last_date}&c)"
   teleport_history_header: "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝"

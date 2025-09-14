@@ -90,7 +90,7 @@ public class CityCommand implements CommandExecutor {
             if (!player.hasPermission(plugin.getConfigManager().getVipTeleportPermission())) {
                 sender.sendMessage("§6╠══════════════════════════════════════╣");
                 sender.sendMessage("§6║§c  🔒 TELETRASPORTO RISERVATO VIP 🔒   §6║");
-                sender.sendMessage("§6║§7 Permesso richiesto: §e" + plugin.getConfigManager().getVipTeleportPermission() + " §6║");
+                sender.sendMessage("§6║§7 Teletrasporto riservato ai possessori del PASS MENSILE+║");
             }
         }
 
@@ -198,8 +198,7 @@ public class CityCommand implements CommandExecutor {
         if (plugin.getConfigManager().isVipTeleportSystemEnabled() && canPlayerUseTeleport(player)) {
             player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
         } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
-            player.sendMessage("§7Solo i VIP possono teletrasportarsi! Permesso richiesto: §e" +
-                    plugin.getConfigManager().getVipTeleportPermission());
+            player.sendMessage(plugin.getConfigManager().getMessage("teleport_only_vip"));
         } else {
             player.sendMessage(plugin.getConfigManager().getMessage("teleport_history_footer"));
         }
@@ -321,8 +320,7 @@ public class CityCommand implements CommandExecutor {
                     if (canPlayerUseTeleport(player)) {
                         player.sendMessage("§7💡 Usa '§a/citta tp " + cityName + "§7' per teletrasportarti!");
                     } else if (plugin.getConfigManager().isVipTeleportSystemEnabled()) {
-                        player.sendMessage("§7🔒 Il teletrasporto è riservato ai VIP (§e" +
-                                plugin.getConfigManager().getVipTeleportPermission() + "§7)");
+                        player.sendMessage(plugin.getConfigManager().getMessage("teleport_only_vip"));
                     }
                 }
             });

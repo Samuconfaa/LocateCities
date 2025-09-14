@@ -80,6 +80,7 @@ public class ConfigManager {
         config.addDefault("messages.scale_set", "&a✅ Scala impostata a: &f{scale}");
         config.addDefault("messages.invalid_coordinates", "&c❌ Coordinate non valide!");
         config.addDefault("messages.invalid_scale", "&c❌ Scala non valida!");
+        config.addDefault("messages.teleport_only_vip", "§7🔒 Il teletrasporto è riservato ai possessori del PASS MENSILE");
         config.addDefault("messages.error_general", "&c❌ Errore: &f{error}");
         config.addDefault("messages.teleport_history_header", "&6╔══════════════════════════════════════╗\n&6║&e        📜 CRONOLOGIA TELEPORT 📜       &6║\n&6╚══════════════════════════════════════╝");
         config.addDefault("messages.teleport_history_entry", "&f{index}. &b{city} &7- &f{date} &7({days_ago} giorni fa)");
