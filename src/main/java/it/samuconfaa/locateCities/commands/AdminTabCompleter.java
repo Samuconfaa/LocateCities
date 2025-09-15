@@ -1,6 +1,7 @@
 package it.samuconfaa.locateCities.commands;
 
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
@@ -15,7 +16,7 @@ public class AdminTabCompleter implements TabCompleter {
     // Sottcomandi admin disponibili
     private static final List<String> ADMIN_SUBCOMMANDS = Arrays.asList(
             "reload", "clearcache", "info", "setorigin", "setscale",
-            "stats", "near", "playerhistory", "cleandb", "dbstats", "bypass"
+            "stats", "near", "playerhistory", "cleandb", "dbstats", "bypass", "setworld"
     );
 
     // Città popolari per il comando near
@@ -44,6 +45,15 @@ public class AdminTabCompleter implements TabCompleter {
                     // Suggerimento per latitudine
                     completions.add("41.9028"); // Roma esempio
                     completions.add("45.4642"); // Milano esempio
+                    break;
+
+                case "setworld":
+                    // Suggerimenti nomi dei mondi
+                    String partials = args[1].toLowerCase();
+                    completions = Bukkit.getWorlds().stream()
+                            .map(World::getName)
+                            .filter(name -> name.toLowerCase().startsWith(partials))
+                            .collect(Collectors.toList());
                     break;
 
                 case "setscale":

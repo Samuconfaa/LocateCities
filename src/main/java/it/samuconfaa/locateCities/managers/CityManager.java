@@ -7,6 +7,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
@@ -273,7 +274,27 @@ public class CityManager {
         }
     }
 
-    public Location getMinecraftLocation(CityData cityData, World world) {
+    public Location getMinecraftLocation(CityData cityData, Player player) {
+        // Ottieni il mondo di destinazione configurato
+        String targetWorldName = configManager.getTargetWorldName();
+        World targetWorld = plugin.getServer().getWorld(targetWorldName);
+
+        // Se il mondo target non esiste, prova il mondo principale
+        if (targetWorld == null) {
+            plugin.getLogger().warning("Mondo target '" + targetWorldName + "' non trovato, usando mondo principale");
+            targetWorld = plugin.getServer().getWorlds().get(0); // Mondo principale
+
+            // Se ancora null, usa il mondo del giocatore come fallback
+            if (targetWorld == null) {
+                plugin.getLogger().severe("Impossibile trovare un mondo valido!");
+                targetWorld = player.getWorld();
+            }
+        }
+
+        return getMinecraftLocationInWorld(cityData, targetWorld);
+    }
+
+    public Location getMinecraftLocationInWorld(CityData cityData, World world) {
         CityData.MinecraftCoordinates coords = cityData.toMinecraftCoordinates(configManager);
 
         int x = coords.getX();
@@ -289,6 +310,11 @@ public class CityManager {
         }
 
         return new Location(world, x, y, z);
+    }
+
+    @Deprecated
+    public Location getMinecraftLocation(CityData cityData, World world) {
+        return getMinecraftLocationInWorld(cityData, world);
     }
 
     // API esistenti mantenute

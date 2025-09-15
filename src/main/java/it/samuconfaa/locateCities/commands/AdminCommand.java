@@ -5,6 +5,7 @@ import it.samuconfaa.locateCities.LocateCities;
 import it.samuconfaa.locateCities.managers.StatisticsManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -86,6 +87,10 @@ public class AdminCommand implements CommandExecutor {
                 handleBypassCooldown(sender, args);
                 break;
 
+            case "setworld":
+                handleSetWorld(sender, args);
+                break;
+
             // NUOVO: Comando per gestire permessi VIP
             case "vip":
                 handleVipManagement(sender, args);
@@ -119,6 +124,7 @@ public class AdminCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setorigin <lat> <lon>     " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setscale <scala>          " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin near <città>              " + ChatColor.GOLD + "║");
+        sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin setworld <mondo>          " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin playerhistory <player>    " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "║" + ChatColor.AQUA + " /cittaadmin cleandb [giorni]          " + ChatColor.GOLD + "║");
         sender.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════╝");
@@ -183,6 +189,21 @@ public class AdminCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.YELLOW + "   Cache hit rate: " + ChatColor.WHITE +
                 String.format("%.1f%%", statisticsManager.getCacheHitRate()));
         sender.sendMessage(ChatColor.YELLOW + "   Città in cache: " + ChatColor.WHITE + cityManager.getCacheSize());
+
+        sender.sendMessage("");
+
+
+        sender.sendMessage(ChatColor.YELLOW + "   Mondo target: " + ChatColor.WHITE +
+                plugin.getConfigManager().getTargetWorldName());
+
+        String targetWorldName = plugin.getConfigManager().getTargetWorldName();
+        World targetWorld = plugin.getServer().getWorld(targetWorldName);
+        if (targetWorld != null) {
+            sender.sendMessage(ChatColor.YELLOW + "   Stato mondo: " + ChatColor.GREEN + "✅ Esistente");
+        } else {
+            sender.sendMessage(ChatColor.YELLOW + "   Stato mondo: " + ChatColor.RED + "❌ Non trovato");
+            sender.sendMessage(ChatColor.RED + "   ⚠️ I teleport useranno il mondo principale come fallback");
+        }
     }
 
     private void handleSetOrigin(CommandSender sender, String[] args) {
@@ -286,6 +307,49 @@ public class AdminCommand implements CommandExecutor {
                 }
             }
         }
+    }
+
+    private void handleSetWorld(CommandSender sender, String[] args) {
+        if (args.length != 2) {
+            sender.sendMessage(ChatColor.RED + "Uso: /cittaadmin setworld <nome_mondo>");
+            sender.sendMessage(ChatColor.GRAY + "Esempio: /cittaadmin setworld survival");
+
+            // Mostra mondi disponibili
+            sender.sendMessage(ChatColor.GRAY + "Mondi disponibili:");
+            for (World world : plugin.getServer().getWorlds()) {
+                sender.sendMessage(ChatColor.GRAY + "- " + ChatColor.WHITE + world.getName());
+            }
+            return;
+        }
+
+        String worldName = args[1].trim();
+
+        // Validazione nome mondo
+        if (!worldName.matches("^[a-zA-Z0-9_-]{1,50}$")) {
+            sender.sendMessage(ChatColor.RED + "Nome mondo non valido! Usa solo lettere, numeri, underscore e trattini.");
+            return;
+        }
+
+        // Verifica se il mondo esiste
+        World targetWorld = plugin.getServer().getWorld(worldName);
+        if (targetWorld == null) {
+            sender.sendMessage(ChatColor.RED + "❌ Il mondo '" + worldName + "' non esiste!");
+            sender.sendMessage(ChatColor.GRAY + "Mondi disponibili:");
+            for (World world : plugin.getServer().getWorlds()) {
+                sender.sendMessage(ChatColor.GRAY + "- " + ChatColor.WHITE + world.getName());
+            }
+            return;
+        }
+
+        // Salva la configurazione
+        plugin.getConfig().set("target_world", worldName);
+        plugin.saveConfig();
+
+        sender.sendMessage(ChatColor.GREEN + "✅ Mondo target impostato a: " + ChatColor.WHITE + worldName);
+        sender.sendMessage(ChatColor.GRAY + "Tutti i futuri teletrasporti avverranno in questo mondo.");
+
+        // Log per admin
+        plugin.getLogger().info(sender.getName() + " ha impostato il mondo target a: " + worldName);
     }
 
     private void handleNear(CommandSender sender, String[] args) {

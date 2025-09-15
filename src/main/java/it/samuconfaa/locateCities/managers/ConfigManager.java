@@ -31,6 +31,7 @@ public class ConfigManager {
         config.addDefault("lon_origin", 0.0);
         config.addDefault("scale", 100.0);
         config.addDefault("y_default", 64);
+        config.addDefault("target_world", "survival");
 
         // Feature defaults
         config.addDefault("enable_teleport", true);
@@ -62,7 +63,7 @@ public class ConfigManager {
         // Message defaults - AGGIORNATI per il nuovo sistema
         config.addDefault("messages.searching", "&e🔍 Ricerca di &f{city} &ein corso...");
         config.addDefault("messages.found", "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}");
-        config.addDefault("messages.teleported", "&a✈ Teletrasportato a &f{city}&a!");
+        config.addDefault("messages.teleported", "&a✈ Teletrasportato a &f{city}&a nel mondo {world}!");
         config.addDefault("messages.not_found", "&c❌ Città non trovata: &f{city}");
         config.addDefault("messages.teleport_disabled", "&c❌ Il teletrasporto è disabilitato!");
         config.addDefault("messages.no_permission", "&c❌ Non hai il permesso per usare questo comando!");
@@ -78,6 +79,7 @@ public class ConfigManager {
         config.addDefault("messages.cache_cleared", "&a✅ Cache pulita!");
         config.addDefault("messages.origin_set", "&a✅ Origine impostata a: &f{lat}, {lon}");
         config.addDefault("messages.scale_set", "&a✅ Scala impostata a: &f{scale}");
+        config.addDefault("messages.world_not_found", "&c❌ Il mondo di destinazione '{world}' non esiste! Contatta un admin.");
         config.addDefault("messages.invalid_coordinates", "&c❌ Coordinate non valide!");
         config.addDefault("messages.invalid_scale", "&c❌ Scala non valida!");
         config.addDefault("messages.teleport_only_vip", "§7🔒 Il teletrasporto è riservato ai possessori del PASS MENSILE");
@@ -112,6 +114,26 @@ public class ConfigManager {
     public int getDefaultY() {
         int y = config.getInt("y_default");
         return validateAndClampY(y);
+    }
+
+    public String getTargetWorldName() {
+        String worldName = config.getString("target_world", "world");
+
+        // Validazione e sanitizzazione del nome mondo
+        if (worldName == null || worldName.trim().isEmpty()) {
+            logger.warning("Nome mondo target non valido nel config, usando 'world'");
+            return "world";
+        }
+
+        worldName = worldName.trim();
+
+        // Validazione nome mondo (solo caratteri alfanumerici, underscore e trattini)
+        if (!worldName.matches("^[a-zA-Z0-9_-]{1,50}$")) {
+            logger.warning("Nome mondo target contiene caratteri non validi: " + worldName + ", usando 'world'");
+            return "world";
+        }
+
+        return worldName;
     }
 
     public boolean isInvertX() {

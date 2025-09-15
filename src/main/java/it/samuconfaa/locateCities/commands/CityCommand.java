@@ -358,10 +358,21 @@ public class CityCommand implements CommandExecutor {
 
     private void handleTeleportExecution(Player player, CityData cityData, CityData.MinecraftCoordinates coords) {
         Location playerLocation = player.getLocation();
-        Location cityLocation = cityManager.getMinecraftLocation(cityData, player.getWorld());
 
-        // Calcola distanza
-        double distance = playerLocation.distance(cityLocation);
+        // Ottieni la location nel mondo di destinazione configurato
+        Location cityLocation = cityManager.getMinecraftLocation(cityData, player);
+
+        // Verifica che il mondo di destinazione esista
+        if (cityLocation.getWorld() == null) {
+            String targetWorldName = plugin.getConfigManager().getTargetWorldName();
+            player.sendMessage(plugin.getConfigManager().getMessage("world_not_found", "world", targetWorldName));
+            return;
+        }
+
+        // Calcola distanza usando le coordinate del mondo del giocatore per il calcolo del costo
+        // ma mantieni il teletrasporto verso il mondo di destinazione
+        Location virtualCityLocationInPlayerWorld = cityManager.getMinecraftLocationInWorld(cityData, player.getWorld());
+        double distance = playerLocation.distance(virtualCityLocationInPlayerWorld);
         boolean isFree = distance <= economyManager.getFreeDistance();
 
         // Calcola il costo del teleport (semplificato, senza opzione bypass pagamento)
@@ -384,13 +395,79 @@ public class CityCommand implements CommandExecutor {
                     "distance", String.valueOf((int) distance)));
         }
 
-        // Esegui il teletrasporto
-        player.teleport(cityLocation);
-        player.sendMessage(plugin.getConfigManager().getMessage("teleported", "city", cityData.getName()));
+        // Esegui il teletrasporto al mondo di destinazione
+        try {
+            // Per teletrasporti cross-world, usiamo un approccio asincrono più sicuro
+            boolean isDifferentWorld = !player.getWorld().equals(cityLocation.getWorld());
+
+            if (isDifferentWorld) {
+                // Teletrasporto cross-world: usa scheduler per evitare problemi
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    try {
+                        player.teleport(cityLocation);
+
+                        // Verifica che il teletrasporto sia avvenuto (controllo della posizione)
+                        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                            Location currentLocation = player.getLocation();
+                            double teleportDistance = currentLocation.distance(cityLocation);
+
+                            // Se la distanza è minore di 5 blocchi, considera il teletrasporto riuscito
+                            if (teleportDistance < 5.0 || currentLocation.getWorld().equals(cityLocation.getWorld())) {
+                                handleTeleportSuccess(player, cityData, cityLocation);
+                            } else {
+                                handleTeleportFailure(player, cityData);
+                            }
+                        }, 5L); // Controlla dopo 1/4 di secondo
+
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Errore durante teletrasporto cross-world: " + e.getMessage());
+                        handleTeleportFailure(player, cityData);
+                    }
+                });
+            } else {
+                // Teletrasporto nello stesso mondo
+                boolean teleportSuccess = player.teleport(cityLocation);
+
+                if (teleportSuccess) {
+                    handleTeleportSuccess(player, cityData, cityLocation);
+                } else {
+                    handleTeleportFailure(player, cityData);
+                }
+            }
+
+        } catch (Exception e) {
+            plugin.getLogger().severe("Errore critico durante il teletrasporto: " + e.getMessage());
+            handleTeleportFailure(player, cityData);
+        }
+    }
+
+    /**
+     * Gestisce il successo del teletrasporto
+     */
+    private void handleTeleportSuccess(Player player, CityData cityData, Location cityLocation) {
+        // Messaggio di successo con nome del mondo
+        String worldName = cityLocation.getWorld().getName();
+        player.sendMessage(plugin.getConfigManager().getMessage("teleported",
+                "city", cityData.getName(),
+                "world", worldName));
+
+        // Log per admin
+        plugin.getLogger().info(player.getName() + " si è teletrasportato a " + cityData.getName() +
+                " nel mondo " + worldName + " (coordinate: " + cityLocation.getBlockX() + ", " +
+                cityLocation.getBlockY() + ", " + cityLocation.getBlockZ() + ")");
 
         // Registra il teleport nelle statistiche e nel database
         statisticsManager.recordTeleport();
         databaseManager.recordTeleport(player.getName(), cityData.getName());
+    }
+
+    /**
+     * Gestisce il fallimento del teletrasporto
+     */
+    private void handleTeleportFailure(Player player, CityData cityData) {
+        player.sendMessage(plugin.getConfigManager().getMessage("error_general",
+                "error", "Impossibile completare il teletrasporto"));
+        plugin.getLogger().warning("Teletrasporto fallito per " + player.getName() + " verso " + cityData.getName());
     }
 
     private double calculateTeleportCost(Player player, double distance, boolean isFree) {

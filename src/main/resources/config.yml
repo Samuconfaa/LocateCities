@@ -11,6 +11,12 @@ scale: 1000.0
 # Altezza Y di default
 y_default: 64
 
+# MONDO DI DESTINAZIONE
+# =====================
+# Nome del mondo dove avverranno tutti i teletrasporti
+# Se il mondo non esiste, il plugin userà il mondo principale
+target_world: "survival"
+
 # Impostazioni funzionalità
 enable_teleport: true
 use_terrain_height: true
@@ -91,7 +97,7 @@ performance:
 messages:
   searching: "&e🔍 Ricerca di &f{city} &ein corso..."
   found: "&a📍 &f{city} &asi trova alle coordinate &bX:{x} Z:{z}"
-  teleported: "&a✈ Teletrasportato a &f{city}&a!"
+  teleported: "&a✈ Teletrasportato a &f{city}&a nel mondo {world}!"
   not_found: "&c❌ Città non trovata: &f{city}"
   teleport_disabled: "&c❌ Il teletrasporto è disabilitato!"
   no_permission: "&c❌ Non hai il permesso per usare questo comando!"
@@ -117,6 +123,7 @@ messages:
   teleport_history_empty: "&7Nessun teleport effettuato ancora."
   teleport_history_footer: "&7Usa &a/citta tp <nome> &7per teletrasportarti!"
   cooldown_bypassed: "&a✅ Il cooldown per i teleport è stato resettato da un admin!"
+  world_not_found: "&c❌ Il mondo di destinazione '{world}' non esiste! Contatta un admin."
 
 # PERMESSI CONSIGLIATI
 # ====================
