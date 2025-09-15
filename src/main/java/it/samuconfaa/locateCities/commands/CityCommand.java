@@ -406,18 +406,41 @@ public class CityCommand implements CommandExecutor {
                     try {
                         player.teleport(cityLocation);
 
-                        // Verifica che il teletrasporto sia avvenuto (controllo della posizione)
+                        // Verifica che il teletrasporto sia avvenuto (controllo sicuro per cross-world)
                         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                            Location currentLocation = player.getLocation();
-                            double teleportDistance = currentLocation.distance(cityLocation);
+                            try {
+                                Location currentLocation = player.getLocation();
 
-                            // Se la distanza è minore di 5 blocchi, considera il teletrasporto riuscito
-                            if (teleportDistance < 5.0 || currentLocation.getWorld().equals(cityLocation.getWorld())) {
-                                handleTeleportSuccess(player, cityData, cityLocation);
-                            } else {
-                                handleTeleportFailure(player, cityData);
+                                // Per cross-world, verifica solo se il giocatore è nel mondo corretto
+                                // e le coordinate sono ragionevolmente vicine
+                                boolean teleportSuccess = false;
+
+                                if (currentLocation.getWorld().equals(cityLocation.getWorld())) {
+                                    // Stesso mondo: calcola distanza normale
+                                    double teleportDistance = currentLocation.distance(cityLocation);
+                                    teleportSuccess = teleportDistance < 10.0; // Entro 10 blocchi
+                                } else {
+                                    // Mondi diversi: considera fallito
+                                    teleportSuccess = false;
+                                }
+
+                                if (teleportSuccess || currentLocation.getWorld().equals(cityLocation.getWorld())) {
+                                    // Se è nel mondo giusto, considera comunque riuscito
+                                    handleTeleportSuccess(player, cityData, cityLocation);
+                                } else {
+                                    handleTeleportFailure(player, cityData);
+                                }
+
+                            } catch (Exception e) {
+                                // In caso di errore nel controllo, assume successo se il mondo è corretto
+                                plugin.getLogger().warning("Errore nel controllo post-teletrasporto: " + e.getMessage());
+                                if (player.getLocation().getWorld().equals(cityLocation.getWorld())) {
+                                    handleTeleportSuccess(player, cityData, cityLocation);
+                                } else {
+                                    handleTeleportFailure(player, cityData);
+                                }
                             }
-                        }, 5L); // Controlla dopo 1/4 di secondo
+                        }, 10L); // Controlla dopo 0.5 secondi
 
                     } catch (Exception e) {
                         plugin.getLogger().warning("Errore durante teletrasporto cross-world: " + e.getMessage());
